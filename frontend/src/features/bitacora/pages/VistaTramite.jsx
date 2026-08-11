@@ -10,7 +10,7 @@ import { Toaster, toast } from "sonner";
 import CancelarComp from "@/features/bitacora/components/modals/CancelarComp";
 import { estatusTerminados } from "@/shared/utils/Constans";
 import { obtenerTareasTramite } from "@/features/bitacora/services/tareas";
-import { Trash2, Info, CheckCircle, MessageSquare } from "lucide-react";
+import { Trash2, Info, CheckCircle, MessageSquare, ChevronRight } from "lucide-react";
 import { DeleteModal } from "@/features/bitacora/components/modals/ConfirmacionElim";
 
 function VistaTramite() {
@@ -26,7 +26,7 @@ function VistaTramite() {
   const [tareas, setTareas] = useState([]);
   const [dias, setDias] = useState("");
   const [showDialog, setShowDialog] = useState(false);
-  const { id } = location.state || {};
+  const { id, listaIds } = location.state || {};
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,7 +51,7 @@ function VistaTramite() {
                 observacion: mov.observacion,
                 fecha: mov.fecha,
                 nombre: mov.nombre,
-              }))
+              })),
             );
           } else {
             setError("No hay observaciones disponibles.");
@@ -78,13 +78,13 @@ function VistaTramite() {
                 return NaN;
               }
               return Math.floor(
-                diferenciaEnMilisegundos / (1000 * 60 * 60 * 24)
+                diferenciaEnMilisegundos / (1000 * 60 * 60 * 24),
               );
             };
 
             const diasDeDiferencia = calcularDiasDeDiferencia(
               clienteEncontrado.fecha_termino,
-              clienteEncontrado.fecha_pago
+              clienteEncontrado.fecha_pago,
             );
 
             if (diasDeDiferencia >= 0) {
@@ -122,6 +122,26 @@ function VistaTramite() {
       setIsDeleting(false);
     }
   };
+  const irAlSiguiente = () => {
+    if (!listaIds || listaIds.length === 0) return;
+
+    // Encontramos la posición del trámite actual
+    const currentIndex = listaIds.indexOf(id);
+
+    // Verificamos que no sea el último elemento de la lista
+    if (currentIndex < listaIds.length - 1) {
+      const nextId = listaIds[currentIndex + 1];
+
+      // Navegamos a la misma vista, pero con el nuevo ID.
+      // Usamos replace: true para no llenar el historial del navegador
+      navigate(location.pathname, {
+        state: { id: nextId, listaIds },
+        replace: true,
+      });
+    } else {
+      toast.info("Has llegado al último trámite de esta página.");
+    }
+  };
 
   if (!clienteEncontrado || clienteEncontrado.length === 0) {
     return (
@@ -140,7 +160,6 @@ function VistaTramite() {
   return (
     <div className="min-h-screen bg-[#f4f6f8] p-4 md:p-8 font-sans text-gray-800">
       <div className="max-w-7xl mx-auto space-y-6">
-        
         {/* ENCABEZADO */}
         <div className="flex justify-between items-start">
           <div className="space-y-2">
@@ -155,12 +174,19 @@ function VistaTramite() {
             <div className="flex gap-4 md:gap-8 text-sm text-gray-700">
               <p>
                 <span className="font-bold text-[#003f4f]">Inicio:</span>{" "}
-                {clienteEncontrado?.fecha ? format(parseISO(clienteEncontrado.fecha), "dd/MM/yyyy") : "Sin fecha"}
+                {clienteEncontrado?.fecha
+                  ? format(parseISO(clienteEncontrado.fecha), "dd/MM/yyyy")
+                  : "Sin fecha"}
               </p>
               {estatusTerminados.includes(clienteEncontrado.estatus) && (
                 <p>
                   <span className="font-bold text-[#003f4f]">Término:</span>{" "}
-                  {clienteEncontrado?.fecha_termino ? format(parseISO(clienteEncontrado.fecha_termino), "dd/MM/yyyy") : ""}
+                  {clienteEncontrado?.fecha_termino
+                    ? format(
+                        parseISO(clienteEncontrado.fecha_termino),
+                        "dd/MM/yyyy",
+                      )
+                    : ""}
                 </p>
               )}
               <p>
@@ -179,10 +205,8 @@ function VistaTramite() {
 
         {/* CONTENIDO PRINCIPAL (GRID) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
           {/* COLUMNA IZQUIERDA (Info + Compromisos + Observaciones) */}
           <div className="lg:col-span-2 space-y-6">
-            
             {/* Información General */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-[#003f4f]"></div>
@@ -190,44 +214,67 @@ function VistaTramite() {
                 <Info size={20} />
                 <h2 className="text-lg font-bold">Información General</h2>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
                 <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Fiado</p>
-                  <p className="font-medium">{clienteEncontrado.cliente_nombre}</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                    Fiado
+                  </p>
+                  <p className="font-medium">
+                    {clienteEncontrado.cliente_nombre}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
-                    {clienteEncontrado.movimiento === 28 ? "Aseguradora" : "Afianzadora"}
+                    {clienteEncontrado.movimiento === 28
+                      ? "Aseguradora"
+                      : "Afianzadora"}
                   </p>
-                  <p className="font-medium">{clienteEncontrado.afianzadora_nombre}</p>
+                  <p className="font-medium">
+                    {clienteEncontrado.afianzadora_nombre}
+                  </p>
                 </div>
-                
+
                 <div className="md:col-span-2 border-t border-gray-100 pt-4"></div>
 
                 <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Beneficiario</p>
-                  <p className="font-medium">{clienteEncontrado.beneficiario_nombre}</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                    Beneficiario
+                  </p>
+                  <p className="font-medium">
+                    {clienteEncontrado.beneficiario_nombre}
+                  </p>
                 </div>
                 <div></div>
 
                 <div className="md:col-span-2 border-t border-gray-100 pt-4"></div>
 
                 <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Agente</p>
-                  <p className="font-medium">{clienteEncontrado.agente_nombre}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Movimiento</p>
-                  <p className="font-medium flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-                    {clienteEncontrado?.movimiento_info?.nombre || "Cargando..."}
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                    Agente
+                  </p>
+                  <p className="font-medium">
+                    {clienteEncontrado.agente_nombre}
                   </p>
                 </div>
-                
                 <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Responsable</p>
-                  <p className="font-medium">{clienteEncontrado.tipo_proceso}</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                    Movimiento
+                  </p>
+                  <p className="font-medium flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                    {clienteEncontrado?.movimiento_info?.nombre ||
+                      "Cargando..."}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                    Responsable
+                  </p>
+                  <p className="font-medium">
+                    {clienteEncontrado.tipo_proceso}
+                  </p>
                 </div>
               </div>
             </div>
@@ -235,42 +282,68 @@ function VistaTramite() {
             {/* Compromisos */}
             {compromisos && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                 <h2 className="text-lg font-bold text-[#003f4f] mb-4">Compromisos</h2>
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">Compromiso</p>
-                      <p className="font-medium">{compromisos.categoria}</p>
+                <h2 className="text-lg font-bold text-[#003f4f] mb-4">
+                  Compromisos
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">
+                      Compromiso
+                    </p>
+                    <p className="font-medium">{compromisos.categoria}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">
+                      Fecha Compromiso
+                    </p>
+                    <p className="font-medium">
+                      {compromisos?.fecha_vencimiento
+                        ? format(
+                            parseISO(compromisos.fecha_vencimiento),
+                            "dd/MM/yyyy",
+                          )
+                        : ""}
+                    </p>
+                  </div>
+
+                  {compromisos.completado === false ? (
+                    <div className="col-span-2">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">
+                        Observaciones
+                      </p>
+                      <div className="flex gap-2 items-center">
+                        <span className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm font-medium">
+                          {compromisos.observaciones}
+                        </span>
+                        <button
+                          onClick={() => setShowDialog(true)}
+                          className="p-2 border border-gray-300 rounded hover:bg-gray-50"
+                        >
+                          ...
+                        </button>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">Fecha Compromiso</p>
-                      <p className="font-medium">{compromisos?.fecha_vencimiento ? format(parseISO(compromisos.fecha_vencimiento), "dd/MM/yyyy") : ""}</p>
-                    </div>
-                    
-                    {compromisos.completado === false ? (
-                       <div className="col-span-2">
-                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Observaciones</p>
-                          <div className="flex gap-2 items-center">
-                            <span className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm font-medium">
-                              {compromisos.observaciones}
-                            </span>
-                            <button onClick={() => setShowDialog(true)} className="p-2 border border-gray-300 rounded hover:bg-gray-50">
-                                ...
-                            </button>
-                          </div>
-                       </div>
-                    ) : (
-                       <>
-                        <div>
-                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Completado el</p>
-                          <p className="font-medium">{compromisos?.fecha_completado}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Por</p>
-                          <p className="font-medium">{compromisos?.completado_por}</p>
-                        </div>
-                       </>
-                    )}
-                 </div>
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase mb-1">
+                          Completado el
+                        </p>
+                        <p className="font-medium">
+                          {compromisos?.fecha_completado}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase mb-1">
+                          Por
+                        </p>
+                        <p className="font-medium">
+                          {compromisos?.completado_por}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             )}
 
@@ -278,27 +351,32 @@ function VistaTramite() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <div className="flex items-center gap-2 mb-8 text-[#003f4f]">
                 <MessageSquare size={20} />
-                <h2 className="text-lg font-bold">Observaciones y Comentarios</h2>
+                <h2 className="text-lg font-bold">
+                  Observaciones y Comentarios
+                </h2>
               </div>
-              
+
               <div className="relative border-l border-gray-300 ml-3 space-y-6 pb-4">
                 {movimientos.map((dato, index) => (
                   <div key={index} className="relative pl-6">
                     <div className="absolute -left-[9px] top-2 w-4 h-4 rounded-full border-2 border-[#003f4f] bg-white"></div>
                     <div className="bg-[#f8f9fa] rounded-lg p-4">
                       <div className="flex justify-between items-center mb-2">
-                        <span className="font-bold text-sm text-[#003f4f]">{dato.nombre}</span>
+                        <span className="font-bold text-sm text-[#003f4f]">
+                          {dato.nombre}
+                        </span>
                         <span className="text-xs font-mono text-gray-500">
                           {format(parseISO(dato.fecha), "dd/MM/yyyy HH:mm")}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{dato.observacion}</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {dato.observacion}
+                      </p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            
           </div>
 
           {/* COLUMNA DERECHA (Finanzas y Pagos) */}
@@ -311,34 +389,53 @@ function VistaTramite() {
                     <CheckCircle size={20} />
                     <h2 className="text-lg font-bold">Estado de Pago</h2>
                   </div>
-                  
+
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Estado</p>
-                      <span className={`px-3 py-1 rounded text-xs font-bold ${
-                          clienteEncontrado.estatus_pago === "PAGADA" ? "bg-[#107c41] text-white" :
-                          clienteEncontrado.estatus_pago === "SE MANDO RECIVO" ? "bg-[#F57F17] text-white" :
-                          clienteEncontrado.estatus_pago === "NO PAGADA" ? "bg-red-500 text-white" : "bg-gray-200 text-gray-700"
-                        }`}>
-                          {clienteEncontrado.estatus_pago || "SIN ESTADO"}
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        Estado
+                      </p>
+                      <span
+                        className={`px-3 py-1 rounded text-xs font-bold ${
+                          clienteEncontrado.estatus_pago === "PAGADA"
+                            ? "bg-[#107c41] text-white"
+                            : clienteEncontrado.estatus_pago ===
+                                "SE MANDO RECIVO"
+                              ? "bg-[#F57F17] text-white"
+                              : clienteEncontrado.estatus_pago === "NO PAGADA"
+                                ? "bg-red-500 text-white"
+                                : "bg-gray-200 text-gray-700"
+                        }`}
+                      >
+                        {clienteEncontrado.estatus_pago || "SIN ESTADO"}
                       </span>
-                    </div>
-                    
-                    <div className="flex justify-between items-center">
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Fecha de pago</p>
-                      <p className="font-mono text-sm">{clienteEncontrado.fecha_pago || "—"}</p>
                     </div>
 
                     <div className="flex justify-between items-center">
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Días de atraso</p>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        Fecha de pago
+                      </p>
+                      <p className="font-mono text-sm">
+                        {clienteEncontrado.fecha_pago || "—"}
+                      </p>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        Días de atraso
+                      </p>
                       <p className="font-mono text-sm">{dias || "0"}</p>
                     </div>
-                    
+
                     {clienteEncontrado.observaciones_pago && (
-                       <div className="pt-4 border-t border-gray-100">
-                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Notas</p>
-                          <p className="text-sm text-gray-600">{clienteEncontrado.observaciones_pago}</p>
-                       </div>
+                      <div className="pt-4 border-t border-gray-100">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                          Notas
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {clienteEncontrado.observaciones_pago}
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -346,25 +443,34 @@ function VistaTramite() {
                 {/* Resumen Financiero */}
                 <div className="bg-[#003f4f] rounded-xl shadow-sm text-white p-6">
                   <h2 className="text-lg font-bold mb-6">Resumen Financiero</h2>
-                  
+
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <p className="text-sm text-blue-100">Prima Inicial</p>
-                      <p className="font-mono text-sm">${clienteEncontrado.prima_inicial} MXN</p>
+                      <p className="font-mono text-sm">
+                        ${clienteEncontrado.prima_inicial} MXN
+                      </p>
                     </div>
                     <div className="flex justify-between items-center">
                       <p className="text-sm text-blue-100">Prima Futura</p>
-                      <p className="font-mono text-sm">${clienteEncontrado.prima_futura} MXN</p>
+                      <p className="font-mono text-sm">
+                        ${clienteEncontrado.prima_futura} MXN
+                      </p>
                     </div>
                     <div className="flex justify-between items-center">
                       <p className="text-sm text-blue-100">Prima Total</p>
-                      <p className="font-mono text-sm">${clienteEncontrado.prima_total} MXN</p>
+                      <p className="font-mono text-sm">
+                        ${clienteEncontrado.prima_total} MXN
+                      </p>
                     </div>
-                    
+
                     <div className="pt-4 mt-2 border-t border-[#005a70] flex justify-between items-center">
-                      <p className="text-sm font-bold tracking-wider uppercase text-blue-100">Importe Total</p>
+                      <p className="text-sm font-bold tracking-wider uppercase text-blue-100">
+                        Importe Total
+                      </p>
                       <p className="text-xl font-bold font-mono">
-                        ${clienteEncontrado.importe_total} <span className="text-sm font-normal">MXN</span>
+                        ${clienteEncontrado.importe_total}{" "}
+                        <span className="text-sm font-normal">MXN</span>
                       </p>
                     </div>
                   </div>
@@ -376,6 +482,15 @@ function VistaTramite() {
 
         {/* Acciones Finales (Botones) */}
         <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-200">
+          {listaIds && listaIds.indexOf(id) < listaIds.length - 1 && (
+            <button
+              onClick={irAlSiguiente}
+              className="px-6 py-2 bg-primary hover:bg-gray-500 text-white rounded-lg font-medium transition-colors shadow-sm mr-auto flex items-center"
+            >
+              Siguiente Trámite
+              <ChevronRight/>
+            </button>
+          )}
           <button
             onClick={() => navigate(`/tramitecliente`, { state: { id: id } })}
             className="flex items-center gap-2 px-6 py-2 border border-gray-300 bg-white rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
@@ -396,28 +511,44 @@ function VistaTramite() {
         {/* Componentes Extras (TramiteView y Tareas) */}
         {clienteEncontrado.movimiento === 21 && (
           <div className="mt-8">
-            <TramiteView id={clienteEncontrado.id} fianza={clienteEncontrado.numero_fianza} />
+            <TramiteView
+              id={clienteEncontrado.id}
+              fianza={clienteEncontrado.numero_fianza}
+            />
           </div>
         )}
 
         {tareas.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm overflow-hidden mt-8 border border-gray-100">
             <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-[#003f4f]">Estado de Tareas del Trámite</h2>
+              <h2 className="text-lg font-bold text-[#003f4f]">
+                Estado de Tareas del Trámite
+              </h2>
             </div>
             <div className="divide-y divide-gray-100">
               {tareas.map((dato, index) => (
-                <div key={index} className="flex flex-col md:flex-row md:items-center justify-between p-6 hover:bg-gray-50">
+                <div
+                  key={index}
+                  className="flex flex-col md:flex-row md:items-center justify-between p-6 hover:bg-gray-50"
+                >
                   <div>
-                    <h3 className="text-sm font-bold text-gray-800">{dato.nombre}</h3>
+                    <h3 className="text-sm font-bold text-gray-800">
+                      {dato.nombre}
+                    </h3>
                     {dato.completado === 1 && (
-                      <p className="mt-1 text-xs text-gray-500">Completado el: {dato.fecha_completado}</p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Completado el: {dato.fecha_completado}
+                      </p>
                     )}
                   </div>
                   <div className="mt-2 md:mt-0">
-                    <span className={`text-xs font-bold px-3 py-1 rounded uppercase tracking-wider ${
-                      dato.completado === 1 ? "bg-[#107c41] text-white" : "bg-gray-200 text-gray-600"
-                    }`}>
+                    <span
+                      className={`text-xs font-bold px-3 py-1 rounded uppercase tracking-wider ${
+                        dato.completado === 1
+                          ? "bg-[#107c41] text-white"
+                          : "bg-gray-200 text-gray-600"
+                      }`}
+                    >
                       {dato.completado === 1 ? "Completado" : "Pendiente"}
                     </span>
                   </div>

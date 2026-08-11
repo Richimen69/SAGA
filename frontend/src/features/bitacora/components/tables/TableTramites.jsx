@@ -78,7 +78,6 @@ export default function TableTramites() {
       try {
         const data = await fetchTramites(page, filters);
         setTramites(data.data);
-        console.log(data);
         setPagination({
           count: data.count,
           currentPage: page,
@@ -92,7 +91,7 @@ export default function TableTramites() {
         setLoading(false);
       }
     },
-    [filters]
+    [filters],
   );
 
   // --- Cargar datos cuando cambian los filtros ---
@@ -113,7 +112,7 @@ export default function TableTramites() {
 
   // --- Handlers de filtros (con debounce para inputs de texto) ---
   const [searchTimeout, setSearchTimeout] = useState(null);
-
+  const listaDeIds = tramites.map((t) => t.id);
   const handleSearchChange = (field, value) => {
     // Limpiar timeout anterior
     if (searchTimeout) clearTimeout(searchTimeout);
@@ -151,7 +150,7 @@ export default function TableTramites() {
       estatus_pago: "",
     });
   };
-
+  const listaIds = tramites.map(t => t.id);
   // --- Verificar si hay filtros activos ---
   const hayFiltrosActivos = Object.values(filters).some((v) => v !== "");
   const tramitesList = Array.isArray(tramites) ? tramites : [];
@@ -169,7 +168,6 @@ export default function TableTramites() {
 
         {/* Contenedor de filtros */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4">
-
           <div className="md:col-span-1">
             <input
               type="text"
@@ -182,7 +180,7 @@ export default function TableTramites() {
                   setFilters((prev) => ({
                     ...prev,
                     search: value,
-                    numero_fianza: "",   // ← limpiar, no duplicar
+                    numero_fianza: "", // ← limpiar, no duplicar
                   }));
                 }, 500);
                 setSearchTimeout(timeout);
@@ -276,18 +274,20 @@ export default function TableTramites() {
             <div className="flex items-center space-x-3">
               <label className="group flex items-center cursor-pointer gap-3">
                 <div
-                  className={`w-8 h-8 flex justify-center items-center rounded-md border-2 shadow-md transition-all duration-300 ${filters.agente_nombre === 'RBG-PP'
-                    ? 'bg-primary border-primary'
-                    : 'bg-gray-100 border-gray-400'
-                    }`}
+                  className={`w-8 h-8 flex justify-center items-center rounded-md border-2 shadow-md transition-all duration-300 ${
+                    filters.agente_nombre === "RBG-PP"
+                      ? "bg-primary border-primary"
+                      : "bg-gray-100 border-gray-400"
+                  }`}
                   onClick={() =>
-                    setFilters(prev => ({
+                    setFilters((prev) => ({
                       ...prev,
-                      agente_nombre: prev.agente_nombre === 'RBG-PP' ? '' : 'RBG-PP'
+                      agente_nombre:
+                        prev.agente_nombre === "RBG-PP" ? "" : "RBG-PP",
                     }))
                   }
                 >
-                  {filters.agente_nombre === 'RBG-PP' && (
+                  {filters.agente_nombre === "RBG-PP" && (
                     <svg
                       fill="currentColor"
                       viewBox="0 0 20 20"
@@ -302,25 +302,25 @@ export default function TableTramites() {
                     </svg>
                   )}
                 </div>
-                <span className="text-gray-700 font-medium">
-                  PP
-                </span>
+                <span className="text-gray-700 font-medium">PP</span>
               </label>
             </div>
           </div>
           <div className="relative sm:w-auto flex-1">
             <select
-              value={filters.afianzadora_id} 
+              value={filters.afianzadora_id}
               onChange={(e) => {
                 const value = e.target.value;
                 localStorage.setItem("afianzadoraFiltro", value);
-                setFilters(prev => ({ ...prev, afianzadora_id: value }));
+                setFilters((prev) => ({ ...prev, afianzadora_id: value }));
               }}
               className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary appearance-none cursor-pointer"
             >
               <option value="">Afianzadora</option>
               {afianzadoras.map((afianzadora) => (
-                <option key={afianzadora.value} value={afianzadora.value}>  {/* ← era afianzadora.label */}
+                <option key={afianzadora.value} value={afianzadora.value}>
+                  {" "}
+                  {/* ← era afianzadora.label */}
                   {afianzadora.label}
                 </option>
               ))}
@@ -328,7 +328,6 @@ export default function TableTramites() {
             <FiChevronDown className="absolute top-1/2 right-4 transform -translate-y-1/2 pointer-events-none text-gray-500" />
           </div>
         </div>
-
       </div>
 
       <div className="rounded-lg border border-gray-200 overflow-hidden mt-5">
@@ -400,7 +399,7 @@ export default function TableTramites() {
                 </tr>
               ) : (
                 tramites.map((tramite) => (
-                  <TramiteRow key={tramite.id} tramite={tramite} />
+                  <TramiteRow key={tramite.id} tramite={tramite} listaIds={listaIds}/>
                 ))
               )}
             </tbody>
@@ -458,10 +457,11 @@ export default function TableTramites() {
                       key={pageNum}
                       onClick={() => goToPage(pageNum)}
                       disabled={loading}
-                      className={`px-3 py-1 text-sm border rounded-md ${pageNum === pagination.currentPage
-                        ? "bg-primary text-white border-primary"
-                        : "hover:bg-gray-100"
-                        } disabled:cursor-not-allowed`}
+                      className={`px-3 py-1 text-sm border rounded-md ${
+                        pageNum === pagination.currentPage
+                          ? "bg-primary text-white border-primary"
+                          : "hover:bg-gray-100"
+                      } disabled:cursor-not-allowed`}
                     >
                       {pageNum}
                     </button>

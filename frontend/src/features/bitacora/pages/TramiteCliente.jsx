@@ -424,18 +424,6 @@ function TramiteCliente() {
                         wrapperClassName="w-full"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Fecha de Emisión</label>
-                      <DatePicker
-                        showIcon
-                        toggleCalendarOnIconClick
-                        selected={formData.fecha_emision}
-                        onChange={(date) => setFormData((prev) => ({ ...prev, fecha_emision: date }))}
-                        dateFormat="dd/MM/yyyy"
-                        className="w-full border border-gray-300 rounded-md p-2 focus:border-[#003f4f] focus:ring-1 focus:ring-[#003f4f] outline-none"
-                        wrapperClassName="w-full"
-                      />
-                    </div>
                   </div>
                   
                   {movimientosPermitidos.includes(formData.movimientoSeleccionado?.value) && (
