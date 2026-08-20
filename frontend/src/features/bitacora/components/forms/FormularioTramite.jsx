@@ -82,17 +82,10 @@ const FormularioTramite = ({ isVisible, onClose, onSuccess }) => {
       return;
     }
     let pago = "PENDIENTE";
-    const movimientosEspeciales = [
-      "SEGURO RC",
-      "AUMENTO",
-      "PRÓRROGA",
-      "MOVIMIENTO ESPECIAL P-A",
-      "SEGURO MAQUINARIA",
-      "CANCELACIÓN",
-    ];
+    const movimientosEspeciales = [1,2,4,6,8,9,11,14,16,17];
 
-    if (movimientosEspeciales.includes(formData.movimiento.label)) {
-      pago = "PENDIENTE";
+    if (movimientosEspeciales.includes(formData.movimiento.value)) {
+      pago = "NO APLICA";
     }
 
     const data = {
@@ -110,7 +103,7 @@ const FormularioTramite = ({ isVisible, onClose, onSuccess }) => {
       estatus: 1,
       tipo_proceso: "BC",
       programa_proveedores: false,
-      estatus_pago: "PENDIENTE",
+      estatus_pago: pago,
     };
     try {
       const result = await crearTramite(data);

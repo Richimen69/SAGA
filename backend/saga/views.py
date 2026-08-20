@@ -388,8 +388,19 @@ class CompromisoViewSet(viewsets.ModelViewSet):
         """Marcar un compromiso como completado"""
         compromiso = self.get_object()
         compromiso.completado = True
-        compromiso.fecha_completado = timezone.now().date()
+        
+        # 1. Obtenemos la fecha que viene del frontend
+        fecha_enviada = request.data.get('fecha_completado')
+        
+        # 2. Si nos enviaron una fecha, la usamos. Si no, usamos la de hoy.
+        if fecha_enviada:
+            compromiso.fecha_completado = fecha_enviada
+        else:
+            compromiso.fecha_completado = timezone.now().date()
+            
         compromiso.completado_por = request.data.get('completado_por', '')
+        
+        # Guardamos en la base de datos
         compromiso.save()
         
         serializer = self.get_serializer(compromiso)

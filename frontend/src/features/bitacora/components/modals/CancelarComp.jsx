@@ -8,31 +8,44 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useUsuario } from "../../hooks";
 import { useNavigate } from "react-router-dom";
 import { completarCompromiso } from "@/features/bitacora/services/tramites.service";
 import { updateTramite } from "@/features/bitacora/services/tramites.service";
 export default function CancelarComp({ onClose, compromiso, tramite }) {
   const [date, setDate] = React.useState(null);
   const [user, setUser] = useState("");
-  const [fecha, setFecha] = useState(null);
-
+  const [fecha, setFecha] = useState(new Date());
+  const usuario = useUsuario();
   const navigate = useNavigate();
   const terminarCompromiso = async () => {
+    const year = fecha.getFullYear();
+    const month = String(fecha.getMonth() + 1).padStart(2, "0");
+    const day = String(fecha.getDate()).padStart(2, "0");
+    const fechaFormateada = `${year}-${month}-${day}`;
     const data = {
       completado_por: user,
+      fecha_completado: fechaFormateada,
     };
     const tramiteData = {
       estatus: 18,
       fecha: tramite.fecha,
+      creado_por: usuario.usuario_usu,
     };
     try {
       const result = await completarCompromiso(data, compromiso);
-      const tramiteResult = await updateTramite(tramiteData, tramite.id)
+      const tramiteResult = await updateTramite(tramiteData, tramite.id);
+      console.log(tramiteResult);
+      console.log(result);
+
       if (tramiteResult) {
         toast.success("Compromiso guardado exitosamente.");
-        navigate(0)
+        onClose();
+        navigate(0);
       } else {
         toast.error("Error al guardar el Compromiso.");
       }
@@ -61,27 +74,24 @@ export default function CancelarComp({ onClose, compromiso, tramite }) {
             />
           </div>
           <div className="grid w-full gap-1.5 relative">
-            {/* 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name" className="text-right">
                 Fecha
               </Label>
- 
-              <div className="col-span-3">
-              <DatePicker
-                    showIcon
-                    toggleCalendarOnIconClick
-                    selected={fechaVencimiento} // Asegúrate que este sea tu estado
-                    onChange={(date) => setFecha(date)} // Actualiza la misma variable
-                    dateFormat="dd/MM/yyyy"
-                    // Añadí 'bg-white' y corregí 'focus:outline-hidden' por 'focus:outline-none'
-                    className="block w-full rounded-md border border-gray-400 bg-white px-3 py-2 text-sm text-gray-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                    placeholderText="Seleccionar fecha"
-                  />
-              </div>
 
+              <div className="col-span-3">
+                <DatePicker
+                  selected={fecha}
+                  onChange={(date) => {
+                    if (date) {
+                      setFecha(date);
+                    }
+                  }}
+                  dateFormat="dd/MM/yyyy"
+                  className="bg-transparent focus:outline-none w-24 cursor-pointer"
+                />
+              </div>
             </div>
-                          */}
           </div>
         </div>
 
