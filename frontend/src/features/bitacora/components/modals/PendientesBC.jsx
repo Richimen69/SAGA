@@ -50,6 +50,7 @@ export function PendientesBC({
     return `${dia}/${mes}/${anio}`;
   };
   useEffect(() => {
+    console.log(datosCliente)
     if (compromiso) {
       setCategoria(compromiso.categoria || "");
       setObservaciones(compromiso.observaciones || "");
@@ -110,7 +111,7 @@ export function PendientesBC({
     const data = {
       // 1. Fecha principal
       fecha: formatToISO(datosCliente.fecha) || "",
-
+      agente_nombre: datosCliente.agenteSeleccionado?.value || "",        
       beneficiario_id: datosCliente.beneficiario?.value || "",
       beneficiario_nombre: datosCliente.beneficiario?.label || "",
       movimiento: datosCliente.movimientoSeleccionado.value || "",

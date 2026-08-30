@@ -10,8 +10,15 @@ import { Toaster, toast } from "sonner";
 import CancelarComp from "@/features/bitacora/components/modals/CancelarComp";
 import { estatusTerminados } from "@/shared/utils/Constans";
 import { obtenerTareasTramite } from "@/features/bitacora/services/tareas";
-import { Trash2, Info, CheckCircle, MessageSquare, ChevronRight } from "lucide-react";
-import { DeleteModal } from "@/features/bitacora/components/modals/ConfirmacionElim";
+import {
+  Trash2,
+  Info,
+  CheckCircle,
+  MessageSquare,
+  ChevronRight,
+  ChevronLeft
+} from "lucide-react";
+import { DeleteModal } from "@/features/bitacora/components/modals/ConfirmacionElim"; 
 
 function VistaTramite() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -122,6 +129,7 @@ function VistaTramite() {
       setIsDeleting(false);
     }
   };
+
   const irAlSiguiente = () => {
     if (!listaIds || listaIds.length === 0) return;
 
@@ -140,6 +148,25 @@ function VistaTramite() {
       });
     } else {
       toast.info("Has llegado al último trámite de esta página.");
+    }
+  };
+  const irAlAnterior = () => {
+    if (!listaIds || listaIds.length === 0) return;
+
+    // Encontramos la posición del trámite actual
+    const currentIndex = listaIds.indexOf(id);
+
+    // Verificamos que no sea el primer elemento de la lista
+    if (currentIndex > 0) {
+      const prevId = listaIds[currentIndex - 1];
+
+      // Navegamos a la misma vista, pero con el ID anterior.
+      navigate(location.pathname, {
+        state: { id: prevId, listaIds },
+        replace: true,
+      });
+    } else {
+      toast.info("Este es el primer trámite de la lista.");
     }
   };
 
@@ -335,7 +362,7 @@ function VistaTramite() {
                       </div>
                       <div>
                         <p className="text-xs font-bold text-gray-400 uppercase mb-1">
-                          Por
+                          Observaciones
                         </p>
                         <p className="font-medium">
                           {compromisos?.completado_por}
@@ -482,13 +509,22 @@ function VistaTramite() {
 
         {/* Acciones Finales (Botones) */}
         <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-200">
+          {listaIds && listaIds.indexOf(id) > 0 && (
+            <button
+              onClick={irAlAnterior}
+              className="px-6 py-2 bg-primary hover:bg-gray-500 text-white rounded-lg font-medium transition-colors shadow-sm flex items-center"
+            >
+              <ChevronLeft />
+              Anterior Trámite
+            </button>
+          )}
           {listaIds && listaIds.indexOf(id) < listaIds.length - 1 && (
             <button
               onClick={irAlSiguiente}
               className="px-6 py-2 bg-primary hover:bg-gray-500 text-white rounded-lg font-medium transition-colors shadow-sm mr-auto flex items-center"
             >
               Siguiente Trámite
-              <ChevronRight/>
+              <ChevronRight />
             </button>
           )}
           <button

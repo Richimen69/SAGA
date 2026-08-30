@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Select from "react-select";
 import DatePicker from "react-datepicker";
@@ -15,6 +15,7 @@ import {
   estatus_pagos,
   estadoTramite,
   estadoTramiteAseguradora,
+  agente,
 } from "@/shared/utils/Constans";
 import { format, parseISO } from "date-fns";
 import {
@@ -26,25 +27,40 @@ import { fetchTramitesId } from "../services/tramites.service";
 import { PendientesBC } from "@/features/bitacora/components/modals/PendientesBC";
 import InfoTramite from "../components/InfoTramite";
 
+// 1. Mover estilos estáticos fuera del componente para evitar recrearlos en cada render
+const selectTheme = (theme) => ({
+  ...theme,
+  colors: {
+    ...theme.colors,
+    primary: "#003f4f",
+  },
+});
+
+const selectStyles = {
+  control: (base) => ({
+    ...base,
+    borderColor: "#d1d5db",
+    padding: "2px",
+    borderRadius: "0.375rem",
+  }),
+};
+
 function TramiteCliente() {
   const usuario = useUsuario();
   const { catalogos, loading: catalogosLoading } = useCatalogos();
   const location = useLocation();
   const navigate = useNavigate();
-  const [clientes, setClientes] = useState([]);
+  const { id } = location.state || {};
+
+  // 2. Corregir inicialización de estado (cliente es un objeto, no un array)
+  const [cliente, setCliente] = useState(null);
   const [estatusPagoSeleccionado, setEstatusPago] = useState(null);
-  const [estadoTareas, setEstadoTareas] = useState(null);
-  const [movimientosTar, setMovimientoTar] = useState([]);
   const [showDialog, setShowDialog] = useState(false);
   const [tareas, setTareas] = useState([]);
-  const opcionesTareas = [
-    { value: 1, label: "Bloqueado" },
-    { value: 0, label: "Desbloqueado" },
-  ];
+  const [seleccionadas, setSeleccionadas] = useState([]);
 
-  const { id } = location.state || {};
   const [formData, setFormData] = useState({
-    id: location.state?.id,
+    id: id,
     estatusSeleccionado: null,
     movimientoSeleccionado: null,
     estatusPago: null,
@@ -61,190 +77,151 @@ function TramiteCliente() {
     afianzadora: "",
     beneficiario: "",
     fecha: "",
-    tipo_fianza: ""
+    tipo_fianza: "",
+    agenteSeleccionado: null,
   });
 
+  // 3. Carga principal de datos
   useEffect(() => {
     if (catalogosLoading || !id) return;
 
     const { afianzadoras, beneficiarios, estatus, movimientos } = catalogos;
+    if (!afianzadoras?.length || !beneficiarios?.length) return;
 
-    if (!afianzadoras.length || !beneficiarios.length) return;
+    let isMounted = true; // Prevenir actualizaciones si el componente se desmonta
 
     const fetchData = async () => {
       try {
-        const clienteData = await fetchTramitesId(id);
-        setClientes(clienteData.data);
-        if (clienteData) {
-          const tipoProcesoSeleccionado =
-            estadoTramite.find(
-              (option) => option.value === clienteData.data.tipo_proceso
-            ) ||
-            estadoTramiteAseguradora.find(
-              (option) => option.value === clienteData.data.tipo_proceso
-            );
+        const { data } = await fetchTramitesId(id);
+        if (!data || !isMounted) return;
 
-          const movimientoEncontrado = movimientos.find(
-            (option) =>
-              option.label.toLowerCase().trim() ===
-              clienteData?.data.movimiento_info?.nombre?.toLowerCase().trim()
-          );
+        setCliente(data);
+        console.log(data)
 
-          setFormData((prev) => ({
-            ...prev,
-            prima_inicial: clienteData.data.prima_inicial || "",
-            prima_futura: clienteData.data.prima_futura || "",
-            prima_total: clienteData.data.prima_total || "",
-            importe_total: clienteData.data.importe_total || "",
-            fianza: clienteData.data.numero_fianza || "",
-            relativo_a: clienteData.data.relativo_a || "",
-            fecha: parseDateFromBackend(clienteData.data.fecha),
-            fechaPago: parseDateFromBackend(clienteData.data.fecha_pago),
-            fecha_termino: parseDateFromBackend(clienteData.data.fecha_termino),
-            fecha_emision: parseDateFromBackend(clienteData.data.fecha_emision),
-            tipo_fianza: clienteData.data.tipo_fianza_id || "",
-            observaciones: clienteData.data.observaciones_pago || "",
+        const isAseguradora = data.movimiento === "SEGURO RC";
+        const catalogoTramites = isAseguradora
+          ? estadoTramiteAseguradora
+          : estadoTramite;
 
-            estatusSeleccionado: estatus
-              ? estatus.find(
-                (option) => option.value === clienteData?.data.estatus_info?.id
-              ) || null
-              : null,
+        const tipoProcesoSeleccionado = catalogoTramites.find(
+          (opt) => opt.value === data.tipo_proceso,
+        );
 
-            movimientoSeleccionado: movimientoEncontrado || null,
-            estadoTramite: tipoProcesoSeleccionado || "",
+        const movimientoInfoNombre = data.movimiento_info?.nombre
+          ?.toLowerCase()
+          .trim();
+        const movimientoEncontrado = movimientos.find(
+          (opt) => opt.label.toLowerCase().trim() === movimientoInfoNombre,
+        );
 
-            afianzadora: afianzadoras
-              ? afianzadoras.find(
-                (option) => option.value === clienteData.data.afianzadora_id
-              ) || null
-              : null,
+        setFormData((prev) => ({
+          ...prev,
+          prima_inicial: data.prima_inicial || "",
+          prima_futura: data.prima_futura || "",
+          prima_total: data.prima_total || "",
+          importe_total: data.importe_total || "",
+          fianza: data.numero_fianza || "",
+          relativo_a: data.relativo_a || "",
+          fecha: parseDateFromBackend(data.fecha),
+          fechaPago: parseDateFromBackend(data.fecha_pago),
+          fecha_termino: parseDateFromBackend(data.fecha_termino),
+          fecha_emision: parseDateFromBackend(data.fecha_emision),
+          tipo_fianza: data.tipo_fianza_id || "",
+          observaciones: data.observaciones_pago || "",
+          estatusSeleccionado:
+            estatus?.find((opt) => opt.value === data.estatus_info?.id) || null,
+          movimientoSeleccionado: movimientoEncontrado || null,
+          agenteSeleccionado: agente?.find((opt) => opt.value === data.agente_nombre) || null,
+          estadoTramite: tipoProcesoSeleccionado || "",
+          afianzadora:
+            afianzadoras?.find((opt) => opt.value === data.afianzadora_id) ||
+            null,
+          beneficiario:
+            beneficiarios?.find(
+              (opt) => opt.label === data.beneficiario_nombre,
+            ) || null,
+        }));
 
-            beneficiario: beneficiarios
-              ? beneficiarios.find(
-                (option) => option.label === clienteData.data.beneficiario_nombre
-              ) || null
-              : null,
-          }));
-
-          const estatusPagoPorDefecto = clienteData.data.estatus_pago;
-          const estatusPagoValue =
-            estatusPagoPorDefecto === "PAGADA"
-              ? { value: "PAGADA", label: "PAGADA" }
-              : estatus_pagos.find(
-                (option) => option.value === estatusPagoPorDefecto
-              ) || { value: "PENDIENTE", label: "PENDIENTE" };
-
-          setEstatusPago(estatusPagoValue);
-        }
+        const estatusPagoPorDefecto = data.estatus_pago;
+        setEstatusPago(
+          estatusPagoPorDefecto === "PAGADA"
+            ? { value: "PAGADA", label: "PAGADA" }
+            : estatus_pagos.find(
+                (opt) => opt.value === estatusPagoPorDefecto,
+              ) || { value: "PENDIENTE", label: "PENDIENTE" },
+        );
       } catch (error) {
         console.error("Error al obtener los datos:", error);
+        toast.error("Error al cargar los datos del trámite");
       }
     };
 
     fetchData();
+    return () => {
+      isMounted = false;
+    };
   }, [catalogos, catalogosLoading, id]);
 
-  const handleChange = (field) => (selectedOption) => {
-    setFormData((prevState) => ({
-      ...prevState,
-      [field]: selectedOption,
-    }));
-  };
+  // 4. Memoizar valores derivados para evitar recálculos
+  const idMovimientoSeleccionado = useMemo(() => {
+    if (!cliente || !catalogos?.movimientos) return null;
+    const nombreMovimiento = cliente.movimiento_info?.nombre
+      ?.toLowerCase()
+      .trim();
+    const mov = catalogos.movimientos.find(
+      (m) => m.label.toLowerCase().trim() === nombreMovimiento,
+    );
+    return mov ? mov.value : null; // Asumiendo que 'value' contiene el ID
+  }, [cliente, catalogos?.movimientos]);
 
-  const handleEstatusChange = handleChange("estatusSeleccionado");
-  const handleMovimientoChange = handleChange("movimientoSeleccionado");
-  const handleEstadoTramiteChange = handleChange("estadoTramite");
-  const handleAfianzadora = handleChange("afianzadora");
-  const handleBeneficiario = handleChange("beneficiario");
-
-  const handleEstatusPagoChange = (selectedOption) => {
-    setEstatusPago(selectedOption);
-  };
-  const handleTareas = (selectedOption) => {
-    setEstadoTareas(selectedOption);
-  };
-
-  const clienteEncontrado = clientes;
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const estatusPago =
-      formData.fechaPago === null ? estatusPagoSeleccionado.value : "PAGADA";
-    setFormData((prevState) => {
-      const nuevaPrimaTotal =
-        (Number(prevState.prima_inicial) || 0) +
-        (Number(prevState.prima_futura) || 0);
-
-      return {
-        ...prevState,
-        estatusPago: estatusPago || null,
-        prima_total: nuevaPrimaTotal,
-      };
-    });
-    console.log(formData)
-    setShowDialog(true);
-  };
-
-  const movimientosOptions = movimientosTar.map((mov) => ({
-    value: mov.nombre,
-    label: mov.nombre,
-  }));
-
-  const movimientoEncontrado = movimientosTar.find(
-    (option) =>
-      option.nombre.toLowerCase().trim() ===
-      clienteEncontrado?.movimiento_info?.nombre.toLowerCase().trim()
-  );
-  const idMovimientoSeleccionado = movimientoEncontrado
-    ? movimientoEncontrado.id
-    : null;
-
+  // 5. Carga de tareas unificada y dependiente de IDs correctos
   useEffect(() => {
-    const fetchData = async () => {
-      const data = await obtenerTareas(idMovimientoSeleccionado);
-      setTareas(data);
-    };
-    fetchData();
+    if (!idMovimientoSeleccionado) return;
+    obtenerTareas(idMovimientoSeleccionado)
+      .then(setTareas)
+      .catch(console.error);
   }, [idMovimientoSeleccionado]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      const data = await obtenerTareasCompletas(id);
-      setSeleccionadas(data);
-    };
-    fetchData();
+    if (!id) return;
+    obtenerTareasCompletas(id).then(setSeleccionadas).catch(console.error);
   }, [id]);
 
-  const [seleccionadas, setSeleccionadas] = useState([]);
-
-  const toggleCheckbox = (id) => {
-    setSeleccionadas((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
-  };
-
-  // Select styles matching the UI
-  const selectTheme = (theme) => ({
-    ...theme,
-    colors: {
-      ...theme.colors,
-      primary: "#003f4f",
+  // 6. Optimizar handlers con useCallback
+  const handleChange = useCallback(
+    (field) => (selectedOption) => {
+      setFormData((prev) => ({ ...prev, [field]: selectedOption }));
     },
-  });
+    [],
+  );
 
-  const selectStyles = {
-    control: (base) => ({
-      ...base,
-      borderColor: '#d1d5db',
-      padding: '2px',
-      borderRadius: '0.375rem',
-    })
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    // Calcular valores finales antes de actualizar el estado para evitar desfases
+    const estatusPagoFinal =
+      formData.fechaPago === null ? estatusPagoSeleccionado?.value : "PAGADA";
+    const nuevaPrimaTotal =
+      (Number(formData.prima_inicial) || 0) +
+      (Number(formData.prima_futura) || 0);
+
+    setFormData((prev) => ({
+      ...prev,
+      estatusPago: estatusPagoFinal || null,
+      prima_total: nuevaPrimaTotal,
+    }));
+
+    setShowDialog(true);
   };
 
-  if (!id) return <div>Error: No se encontró el ID del cliente.</div>;
+  if (!id)
+    return (
+      <div className="p-8 text-center text-red-500 font-bold">
+        Error: No se encontró el ID del cliente.
+      </div>
+    );
 
-  if (!clienteEncontrado || clienteEncontrado.length === 0) {
+  if (!cliente) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <lottie-player
@@ -261,16 +238,15 @@ function TramiteCliente() {
   return (
     <div className="min-h-screen bg-[#f4f6f8] p-4 md:p-8 font-sans text-gray-800">
       <div className="max-w-7xl mx-auto space-y-6">
-        
         {/* ENCABEZADO */}
         <div className="flex justify-between items-start">
           <div className="space-y-2">
             <div className="flex items-center gap-4">
               <h1 className="text-3xl font-extrabold text-[#003f4f]">
-                Folio {clienteEncontrado.folio}
+                Folio {cliente.folio}
               </h1>
               <span className="bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
-                {clienteEncontrado?.estatus_info?.nombre}
+                {cliente.estatus_info?.nombre}
               </span>
             </div>
             <div className="flex gap-4 md:gap-8 text-sm text-gray-700">
@@ -278,41 +254,31 @@ function TramiteCliente() {
                 <span className="font-bold text-[#003f4f]">Inicio:</span>
                 <DatePicker
                   selected={formData.fecha}
-                  onChange={(date) => {
-                    if (date) {
-                      setFormData((prevState) => ({
-                        ...prevState,
-                        fecha: date,
-                      }));
-                    }
-                  }}
+                  onChange={(date) =>
+                    date && setFormData((prev) => ({ ...prev, fecha: date }))
+                  }
                   dateFormat="dd/MM/yyyy"
                   className="bg-transparent focus:outline-none w-24 cursor-pointer"
                 />
               </div>
-              {clienteEncontrado.fecha_termino && (
+              {cliente.fecha_termino && (
                 <p>
                   <span className="font-bold text-[#003f4f]">Término:</span>{" "}
-                  {format(parseISO(clienteEncontrado.fecha_termino), "dd/MM/yyyy")}
+                  {format(parseISO(cliente.fecha_termino), "dd/MM/yyyy")}
                 </p>
               )}
               <p>
                 <span className="font-bold text-[#003f4f]">Fianza:</span>{" "}
-                {clienteEncontrado.numero_fianza}
+                {cliente.numero_fianza}
               </p>
             </div>
           </div>
-          <button className="text-red-500 hover:text-red-700 transition-colors p-2">
-            <Trash2 size={24} />
-          </button>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
             {/* COLUMNA IZQUIERDA */}
             <div className="lg:col-span-2 space-y-6">
-              
               {/* Información General */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 relative">
                 <div className="absolute top-0 left-0 w-full h-1 bg-[#003f4f]"></div>
@@ -320,22 +286,26 @@ function TramiteCliente() {
                   <Info size={20} />
                   <h2 className="text-lg font-bold">Información General</h2>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
                   <div className="md:col-span-1">
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Fiado</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                      Fiado
+                    </label>
                     <div className="p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700 font-medium h-[42px] flex items-center">
-                      {clienteEncontrado.cliente_nombre}
+                      {cliente.cliente_nombre}
                     </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                      {clienteEncontrado.movimiento === "SEGURO RC" ? "Aseguradora" : "Afianzadora"}
+                      {cliente.movimiento === "SEGURO RC"
+                        ? "Aseguradora"
+                        : "Afianzadora"}
                     </label>
                     <Select
                       options={catalogos.afianzadoras}
                       value={formData.afianzadora}
-                      onChange={handleAfianzadora}
+                      onChange={handleChange("afianzadora")}
                       placeholder="Seleccionar..."
                       styles={selectStyles}
                       theme={selectTheme}
@@ -345,11 +315,13 @@ function TramiteCliente() {
                   <div className="md:col-span-2 border-t border-gray-100 pt-4"></div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Beneficiario</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                      Beneficiario
+                    </label>
                     <Select
                       options={catalogos.beneficiarios}
                       value={formData.beneficiario}
-                      onChange={handleBeneficiario}
+                      onChange={handleChange("beneficiario")}
                       placeholder="Seleccionar..."
                       styles={selectStyles}
                       theme={selectTheme}
@@ -359,17 +331,26 @@ function TramiteCliente() {
                   <div className="md:col-span-2 border-t border-gray-100 pt-4"></div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Agente</label>
-                    <div className="p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700 font-medium h-[42px] flex items-center">
-                      {clienteEncontrado.agente_nombre}
-                    </div>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                      Agente
+                    </label>
+                    <Select
+                      options={agente}
+                      value={formData.agenteSeleccionado}
+                      onChange={handleChange("agenteSeleccionado")}
+                      placeholder="Seleccionar..."
+                      styles={selectStyles}
+                      theme={selectTheme}
+                    />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Movimiento</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                      Movimiento
+                    </label>
                     <Select
                       options={catalogos.movimientos}
                       value={formData.movimientoSeleccionado}
-                      onChange={handleMovimientoChange}
+                      onChange={handleChange("movimientoSeleccionado")}
                       placeholder="Seleccionar..."
                       styles={selectStyles}
                       theme={selectTheme}
@@ -377,11 +358,13 @@ function TramiteCliente() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Estatus</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                      Estatus
+                    </label>
                     <Select
                       options={catalogos.estatus}
                       value={formData.estatusSeleccionado}
-                      onChange={handleEstatusChange}
+                      onChange={handleChange("estatusSeleccionado")}
                       placeholder="Seleccionar..."
                       styles={selectStyles}
                       theme={selectTheme}
@@ -389,11 +372,17 @@ function TramiteCliente() {
                   </div>
                   {formData.estatusSeleccionado?.value !== 18 && (
                     <div>
-                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Estatus Trámite</label>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                        Estatus Trámite
+                      </label>
                       <Select
-                        options={clienteEncontrado.movimiento === "SEGURO RC" ? estadoTramiteAseguradora : estadoTramite}
+                        options={
+                          cliente.movimiento === "SEGURO RC"
+                            ? estadoTramiteAseguradora
+                            : estadoTramite
+                        }
                         value={formData.estadoTramite}
-                        onChange={handleEstadoTramiteChange}
+                        onChange={handleChange("estadoTramite")}
                         placeholder="Seleccionar..."
                         styles={selectStyles}
                         theme={selectTheme}
@@ -404,31 +393,45 @@ function TramiteCliente() {
               </div>
 
               {/* Fechas e Importes */}
-              {estatusTerminados.includes(formData.estatusSeleccionado?.value) && (
+              {estatusTerminados.includes(
+                formData.estatusSeleccionado?.value,
+              ) && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 relative">
                   <div className="flex items-center gap-2 mb-6 text-[#003f4f]">
                     <Calendar size={20} />
                     <h2 className="text-lg font-bold">Fechas e Importes</h2>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div>
-                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Fecha de Termino</label>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                        Fecha de Termino
+                      </label>
                       <DatePicker
                         showIcon
                         toggleCalendarOnIconClick
                         selected={formData.fecha_termino}
-                        onChange={(date) => setFormData((prev) => ({ ...prev, fecha_termino: date }))}
+                        onChange={(date) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            fecha_termino: date,
+                          }))
+                        }
                         dateFormat="dd/MM/yyyy"
                         className="w-full border border-gray-300 rounded-md p-2 focus:border-[#003f4f] focus:ring-1 focus:ring-[#003f4f] outline-none"
                         wrapperClassName="w-full"
                       />
                     </div>
                   </div>
-                  
-                  {movimientosPermitidos.includes(formData.movimientoSeleccionado?.value) && (
+
+                  {movimientosPermitidos.includes(
+                    formData.movimientoSeleccionado?.value,
+                  ) && (
                     <div className="border-t border-gray-100 pt-6">
-                      <FormPrimas formData={formData} setFormData={setFormData} />
+                      <FormPrimas
+                        formData={formData}
+                        setFormData={setFormData}
+                      />
                     </div>
                   )}
                 </div>
@@ -437,86 +440,112 @@ function TramiteCliente() {
 
             {/* COLUMNA DERECHA */}
             <div className="space-y-6">
-              
               {/* Estado de Pago */}
-              {estatusTerminados.includes(formData.estatusSeleccionado?.value) && movimientosPermitidos.includes(formData.movimientoSeleccionado?.value) && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 relative">
-                  <div className="flex items-center gap-2 mb-6 text-[#003f4f]">
-                    <CheckCircle size={20} />
-                    <h2 className="text-lg font-bold">Estado de Pago</h2>
-                  </div>
-                  
-                  <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Estado</label>
-                      {formData.fechaPago !== null ? (
-                        <div className="flex items-center gap-3">
-                          <span className="bg-[#107c41] text-white px-3 py-1 rounded text-xs font-bold">PAGADA</span>
-                          <button
-                            type="button"
-                            className="text-gray-400 hover:text-red-500 transition-colors"
-                            onClick={() => {
-                              setFormData((prev) => ({ ...prev, fechaPago: null }));
-                              setEstatusPago(estatus_pagos[2]);
-                            }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      ) : (
+              {estatusTerminados.includes(
+                formData.estatusSeleccionado?.value,
+              ) &&
+                movimientosPermitidos.includes(
+                  formData.movimientoSeleccionado?.value,
+                ) && (
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 relative">
+                    <div className="flex items-center gap-2 mb-6 text-[#003f4f]">
+                      <CheckCircle size={20} />
+                      <h2 className="text-lg font-bold">Estado de Pago</h2>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex justify-between items-center">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                          Estado
+                        </label>
+                        {formData.fechaPago !== null ? (
+                          <div className="flex items-center gap-3">
+                            <span className="bg-[#107c41] text-white px-3 py-1 rounded text-xs font-bold">
+                              PAGADA
+                            </span>
+                            <button
+                              type="button"
+                              className="text-gray-400 hover:text-red-500 transition-colors"
+                              onClick={() => {
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  fechaPago: null,
+                                }));
+                                setEstatusPago(estatus_pagos[2]);
+                              }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="w-40">
+                            <Select
+                              options={estatus_pagos}
+                              value={estatusPagoSeleccionado}
+                              onChange={setEstatusPago}
+                              placeholder="Estado..."
+                              styles={selectStyles}
+                              theme={selectTheme}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                          Fecha de Pago
+                        </label>
                         <div className="w-40">
-                          <Select
-                            options={estatus_pagos}
-                            value={estatusPagoSeleccionado}
-                            onChange={handleEstatusPagoChange}
-                            placeholder="Estado..."
-                            styles={selectStyles}
-                            theme={selectTheme}
+                          <DatePicker
+                            selected={formData.fechaPago}
+                            onChange={(date) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                fechaPago: date,
+                              }))
+                            }
+                            dateFormat="dd/MM/yyyy"
+                            className="w-full border border-gray-300 rounded-md p-1.5 text-sm text-right focus:border-[#003f4f] outline-none"
+                            placeholderText="Seleccionar..."
                           />
+                        </div>
+                      </div>
+
+                      {estatusPagoSeleccionado?.label === "NO PAGADA" && (
+                        <div className="pt-2">
+                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                            Observaciones de pago
+                          </label>
+                          <textarea
+                            value={formData.observaciones}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                observaciones: e.target.value,
+                              }))
+                            }
+                            className="w-full border border-gray-300 rounded-md p-3 text-sm focus:border-[#003f4f] focus:ring-1 focus:ring-[#003f4f] outline-none resize-none"
+                            rows="3"
+                            placeholder="Escriba aquí sus observaciones..."
+                          ></textarea>
                         </div>
                       )}
                     </div>
-                    
-                    <div className="flex justify-between items-center">
-                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Fecha de Pago</label>
-                      <div className="w-40">
-                        <DatePicker
-                          selected={formData.fechaPago}
-                          onChange={(date) => setFormData((prev) => ({ ...prev, fechaPago: date }))}
-                          dateFormat="dd/MM/yyyy"
-                          className="w-full border border-gray-300 rounded-md p-1.5 text-sm text-right focus:border-[#003f4f] outline-none"
-                          placeholderText="Seleccionar..."
-                        />
-                      </div>
-                    </div>
-
-                    {estatusPagoSeleccionado?.label === "NO PAGADA" && (
-                      <div className="pt-2">
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Observaciones de pago</label>
-                        <textarea
-                          value={formData.observaciones}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, observaciones: e.target.value }))}
-                          className="w-full border border-gray-300 rounded-md p-3 text-sm focus:border-[#003f4f] focus:ring-1 focus:ring-[#003f4f] outline-none resize-none"
-                          rows="3"
-                          placeholder="Escriba aquí sus observaciones..."
-                        ></textarea>
-                      </div>
-                    )}
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Datos de Fianza / InfoTramite */}
               <div className="bg-white rounded-xl shadow-sm text-white p-6">
                 <div className="flex items-center gap-2 mb-6">
                   <FileText size={20} className="text-primary" />
-                  <h2 className="text-lg font-bold text-primary">Datos de Fianza</h2>
+                  <h2 className="text-lg font-bold text-primary">
+                    Datos de Fianza
+                  </h2>
                 </div>
                 <div className="text-gray-800">
-                   <InfoTramite formData={formData} setFormData={setFormData} />
+                  <InfoTramite formData={formData} setFormData={setFormData} />
                 </div>
               </div>
-              
             </div>
           </div>
 
@@ -540,7 +569,7 @@ function TramiteCliente() {
 
         {/* OBSERVACIONES GENERALES */}
         <div className="mt-8">
-           <GestionObservaciones tramiteId={id} usuario={usuario} />
+          <GestionObservaciones tramiteId={id} usuario={usuario} />
         </div>
       </div>
 
@@ -548,7 +577,7 @@ function TramiteCliente() {
         <PendientesBC
           onClose={() => setShowDialog(false)}
           id={id}
-          compromiso={clientes.compromisos_detalle?.length > 0 ? clientes.compromisos_detalle[0] : null}
+          compromiso={cliente.compromisos_detalle?.[0] || null}
           datosCliente={formData}
           tareas={seleccionadas.length > 0 ? seleccionadas : ""}
           idMovimiento={tareas.map((t) => t.id)}

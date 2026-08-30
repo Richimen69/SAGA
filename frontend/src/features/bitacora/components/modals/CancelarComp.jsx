@@ -12,6 +12,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useUsuario } from "../../hooks";
 import { useNavigate } from "react-router-dom";
 import { completarCompromiso } from "@/features/bitacora/services/tramites.service";
@@ -39,8 +40,6 @@ export default function CancelarComp({ onClose, compromiso, tramite }) {
     try {
       const result = await completarCompromiso(data, compromiso);
       const tramiteResult = await updateTramite(tramiteData, tramite.id);
-      console.log(tramiteResult);
-      console.log(result);
 
       if (tramiteResult) {
         toast.success("Compromiso guardado exitosamente.");
@@ -57,28 +56,37 @@ export default function CancelarComp({ onClose, compromiso, tramite }) {
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
-          <DialogTitle>Terminar Compromiso</DialogTitle>
+          <DialogTitle className="text-xl font-bold text-gray-800">
+            Terminar Compromiso
+          </DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="name" className="text-right">
-              Nombre
+
+        <div className="grid gap-6 py-4">
+          <div className="grid grid-cols-4 items-start gap-4">
+            <Label
+              htmlFor="observaciones"
+              className="text-right mt-2 text-gray-700 font-medium"
+            >
+              Observaciones
             </Label>
-            <Input
-              id="name"
+            <Textarea
+              id="observaciones"
               onChange={(e) => setUser(e.target.value)}
-              placeholder="Pedro Duarte"
-              className="col-span-3"
+              placeholder="Escribe las observaciones aquí..."
+              className="col-span-3 resize-none min-h-[100px] focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
             />
           </div>
+
           <div className="grid w-full gap-1.5 relative">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
+              <Label
+                htmlFor="fecha"
+                className="text-right text-gray-700 font-medium"
+              >
                 Fecha
               </Label>
-
               <div className="col-span-3">
                 <DatePicker
                   selected={fecha}
@@ -88,7 +96,8 @@ export default function CancelarComp({ onClose, compromiso, tramite }) {
                     }
                   }}
                   dateFormat="dd/MM/yyyy"
-                  className="bg-transparent focus:outline-none w-24 cursor-pointer"
+                  // Aquí se añadieron las clases para que luzca como un input real ocupando todo el espacio
+                  className="w-full flex h-10 rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow cursor-pointer"
                 />
               </div>
             </div>
@@ -101,6 +110,7 @@ export default function CancelarComp({ onClose, compromiso, tramite }) {
             onClick={() => {
               terminarCompromiso();
             }}
+            className="w-full sm:w-auto shadow-sm"
           >
             Aceptar
           </Button>
