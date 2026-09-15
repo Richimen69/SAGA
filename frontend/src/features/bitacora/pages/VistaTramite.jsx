@@ -560,7 +560,11 @@ function VistaTramite(user) {
             </button>
           )}
           <button
-            onClick={() => navigate(`/tramitecliente`, { state: { id: id } })}
+            onClick={() =>
+              navigate(`/tramitecliente`, {
+                state: { id: id, compromisos: compromisos },
+              })
+            }
             className="flex items-center gap-2 px-6 py-2 border border-gray-300 bg-white rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
           >
             <IconContext.Provider value={{ size: "1.2em" }}>

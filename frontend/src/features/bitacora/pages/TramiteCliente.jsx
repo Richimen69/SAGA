@@ -50,7 +50,7 @@ function TramiteCliente() {
   const { catalogos, loading: catalogosLoading } = useCatalogos();
   const location = useLocation();
   const navigate = useNavigate();
-  const { id } = location.state || {};
+  const { id, compromisos } = location.state || {};
 
   // 2. Corregir inicialización de estado (cliente es un objeto, no un array)
   const [cliente, setCliente] = useState(null);
@@ -96,7 +96,6 @@ function TramiteCliente() {
         if (!data || !isMounted) return;
 
         setCliente(data);
-        console.log(data)
 
         const isAseguradora = data.movimiento === "SEGURO RC";
         const catalogoTramites = isAseguradora
@@ -131,7 +130,8 @@ function TramiteCliente() {
           estatusSeleccionado:
             estatus?.find((opt) => opt.value === data.estatus_info?.id) || null,
           movimientoSeleccionado: movimientoEncontrado || null,
-          agenteSeleccionado: agente?.find((opt) => opt.value === data.agente_nombre) || null,
+          agenteSeleccionado:
+            agente?.find((opt) => opt.value === data.agente_nombre) || null,
           estadoTramite: tipoProcesoSeleccionado || "",
           afianzadora:
             afianzadoras?.find((opt) => opt.value === data.afianzadora_id) ||
@@ -577,7 +577,7 @@ function TramiteCliente() {
         <PendientesBC
           onClose={() => setShowDialog(false)}
           id={id}
-          compromiso={cliente.compromisos_detalle?.[0] || null}
+          compromiso={compromisos || null}
           datosCliente={formData}
           tareas={seleccionadas.length > 0 ? seleccionadas : ""}
           idMovimiento={tareas.map((t) => t.id)}

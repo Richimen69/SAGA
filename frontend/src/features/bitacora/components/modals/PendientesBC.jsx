@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input"; // <-- Nuevo import para el campo Responsable
+import { Input } from "@/components/ui/input";
 import { updateTramite, addCompromiso, putCompromiso } from "../../services/tramites.service";
 import { useNavigate } from "react-router-dom";
 import { guardarTareaCompletada } from "@/features/bitacora/services/tareas";
@@ -34,20 +34,21 @@ export function PendientesBC({
   datosCliente,
   tareas,
   idMovimiento,
-  compromiso // <--- Puede venir un compromiso previo desde los props
+  compromiso // <-- Ahora recibimos un arreglo aquí
 }) {
   const usuario = useUsuario();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
-  // 1. Estado convertido en un Arreglo para soportar múltiples compromisos
+  // 1. Estado inicial actualizado para incluir el flag "completado"
   const [compromisosList, setCompromisosList] = useState([
     {
-      id: null, // Para saber si es actualización o creación nueva
+      id: null,
       categoria: "",
-      nombre_persona: "", // <-- Nuevo campo Responsable
+      nombre_persona: "",
       observaciones: "",
       fecha_vencimiento: null,
+      completado: false, // <-- Nuevo campo para controlar si es editable
     }
   ]);
 
@@ -60,21 +61,25 @@ export function PendientesBC({
   };
 
   useEffect(() => {
-    // Si ya existe un compromiso proveniente de los props, inicializamos el primer elemento con esa data
-    if (compromiso) {
+    // 2. Modificamos el useEffect para procesar el ARREGLO de compromisos
+    if (compromiso && Array.isArray(compromiso) && compromiso.length > 0) {
+      const mapeados = compromiso.map((c) => ({
+        id: c.id,
+        categoria: c.categoria || "",
+        nombre_persona: c.nombre_persona && c.nombre_persona !== 'none' ? c.nombre_persona : "",
+        observaciones: c.observaciones || "",
+        fecha_vencimiento: c.fecha_vencimiento ? new Date(c.fecha_vencimiento) : null,
+        completado: c.completado || false, // Rescatamos si ya fue completado
+      }));
+      setCompromisosList(mapeados);
+    } else {
+      // Si no hay compromisos, inicializamos con uno vacío
       setCompromisosList([
-        {
-          id: compromiso.id || null,
-          categoria: compromiso.categoria || "",
-          nombre_persona: compromiso.nombre_persona && compromiso.nombre_persona !== 'none' ? compromiso.nombre_persona : "",
-          observaciones: compromiso.observaciones || "",
-          fecha_vencimiento: compromiso.fecha_vencimiento ? new Date(compromiso.fecha_vencimiento) : null,
-        }
+        { id: null, categoria: "", nombre_persona: "", observaciones: "", fecha_vencimiento: null, completado: false }
       ]);
     }
   }, [compromiso]);
 
-  // 2. Funciones para manejar el arreglo de compromisos
   const handleCompromisoChange = (index, field, value) => {
     const newList = [...compromisosList];
     newList[index][field] = value;
@@ -84,7 +89,7 @@ export function PendientesBC({
   const agregarCompromiso = () => {
     setCompromisosList([
       ...compromisosList,
-      { id: null, categoria: "", nombre_persona: "", observaciones: "", fecha_vencimiento: null }
+      { id: null, categoria: "", nombre_persona: "", observaciones: "", fecha_vencimiento: null, completado: false }
     ]);
   };
 
@@ -107,7 +112,6 @@ export function PendientesBC({
     });
 
     const resultados = await Promise.allSettled(promesas);
-
     resultados.forEach((resultado, index) => {
       if (resultado.status === "rejected") {
         toast.error(`Hubo un problema al guardar la tarea ID ${idMovimiento[index]}`);
@@ -143,15 +147,12 @@ export function PendientesBC({
       afianzadora_id: datosCliente.afianzadora?.value || "",
       afianzadora_nombre: datosCliente.afianzadora?.label || "",
       estatus: datosCliente.estatusSeleccionado.value || "",
-      
-      // Guardamos la observación del primer compromiso en el trámite (o null si no hay)
       observaciones_pago: datosCliente.observaciones || "",
       numero_fianza: datosCliente.fianza || "",
       prima_inicial: datosCliente.prima_inicial ? parseFloat(Number(datosCliente.prima_inicial).toFixed(2)) : null,
       prima_futura: datosCliente.prima_futura ? parseFloat(Number(datosCliente.prima_futura).toFixed(2)) : null,
       prima_total: parseFloat((datosCliente.prima_total || 0).toFixed(2)),
       importe_total: datosCliente.importe_total ? parseFloat(Number(datosCliente.importe_total).toFixed(2)) : null,
-
       fecha_termino: formatToISO(datosCliente.fecha_termino) || null,
       fecha_pago: formatToISO(datosCliente.fechaPago) || null,
       fecha_emision: formatToISO(datosCliente.fecha_emision) || null,
@@ -167,19 +168,17 @@ export function PendientesBC({
     try {
       const result = await updateTramite(data, id);
       
-      // 3. Procesamos múltiples compromisos (Crear o Actualizar)
       if (datosCliente?.estatusSeleccionado.value === 16) {
         const promesasCompromisos = compromisosList.map(comp => {
           const compromisoData = {
             tramite: id,
-            nombre_persona: comp.nombre_persona || 'none', // Asignado
+            nombre_persona: comp.nombre_persona || 'none',
             categoria: comp.categoria,
             observaciones: comp.observaciones,
-            fecha_vencimiento: formatToISO(comp.fecha_vencimiento),
+            fecha_vencimiento: comp.fecha_vencimiento ? formatToISO(comp.fecha_vencimiento) : null,
             creado_por: usuario.usuario_usu,
           };
 
-          // Si el objeto tiene un ID previo, hace PUT. Si no, hace POST (nuevo compromiso)
           if (comp.id) {
             return putCompromiso(compromisoData, comp.id);
           } else {
@@ -187,7 +186,6 @@ export function PendientesBC({
           }
         });
 
-        // Esperar a que se guarden todos los compromisos
         await Promise.all(promesasCompromisos);
       }
 
@@ -208,13 +206,7 @@ export function PendientesBC({
   if (loading) {
     return (
       <div className="fixed top-0 left-0 w-full h-full flex justify-center items-center z-50 backdrop-blur-xs">
-        <lottie-player
-          autoplay
-          loop
-          mode="normal"
-          src="/loader.json"
-          style={{ width: "200px", height: "200px" }}
-        ></lottie-player>
+        <lottie-player autoplay loop mode="normal" src="/loader.json" style={{ width: "200px", height: "200px" }}></lottie-player>
       </div>
     );
   }
@@ -230,17 +222,24 @@ export function PendientesBC({
           )}
         </DialogHeader>
 
-        {/* Contenedor escroleable por si agregan varios compromisos */}
         <div className="flex-1 overflow-y-auto pr-2 py-4">
           {datosCliente.estatusSeleccionado.value === 16 && (
             <div className="flex flex-col gap-6">
               
               {compromisosList.map((comp, index) => (
                 <div key={index} className="relative border border-slate-200 rounded-md p-4 bg-slate-50/50 shadow-sm flex flex-col gap-4">
-                  {/* Título de la tarjeta y Botón de borrar */}
+                  {/* 3. Título de la tarjeta, Label de COMPLETADO y Botón de borrar */}
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-semibold text-slate-600">Compromiso {index + 1}</span>
-                    {compromisosList.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-600">Compromiso {index + 1}</span>
+                      {comp.completado && (
+                        <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-bold">
+                          Completado
+                        </span>
+                      )}
+                    </div>
+                    {/* Solo mostramos el botón eliminar si el compromiso NO está completado */}
+                    {!comp.completado && compromisosList.length > 1 && (
                       <Button 
                         variant="ghost" 
                         size="sm" 
@@ -252,11 +251,14 @@ export function PendientesBC({
                     )}
                   </div>
 
-                  {/* 1. Categoría */}
                   <div className="grid w-full gap-1.5">
                     <Label>Categoría</Label>
-                    <Select value={comp.categoria} onValueChange={(val) => handleCompromisoChange(index, "categoria", val)}>
-                      <SelectTrigger className="w-full bg-white">
+                    <Select 
+                      disabled={comp.completado} // <-- Bloqueado si está completado
+                      value={comp.categoria} 
+                      onValueChange={(val) => handleCompromisoChange(index, "categoria", val)}
+                    >
+                      <SelectTrigger className={`w-full ${comp.completado ? 'bg-gray-100 cursor-not-allowed text-gray-500' : 'bg-white'}`}>
                         <SelectValue placeholder="Selecciona categoría" />
                       </SelectTrigger>
                       <SelectContent>
@@ -270,45 +272,44 @@ export function PendientesBC({
                     </Select>
                   </div>
 
-                  {/* 2. Responsable (NUEVO CAMPO) */}
                   <div className="grid w-full gap-1.5">
                     <Label>Responsable</Label>
                     <Input 
+                      disabled={comp.completado} // <-- Bloqueado
                       placeholder="Nombre de la persona" 
-                      className="bg-white"
+                      className={comp.completado ? 'bg-gray-100 cursor-not-allowed text-gray-500' : 'bg-white'}
                       value={comp.nombre_persona}
                       onChange={(e) => handleCompromisoChange(index, "nombre_persona", e.target.value)}
                     />
                   </div>
 
-                  {/* 3. Observaciones */}
                   <div className="grid w-full gap-1.5">
                     <Label>Observaciones</Label>
                     <Textarea
+                      disabled={comp.completado} // <-- Bloqueado
                       placeholder="Escribe las observaciones..."
-                      className="bg-white"
+                      className={comp.completado ? 'bg-gray-100 cursor-not-allowed text-gray-500' : 'bg-white'}
                       value={comp.observaciones}
                       onChange={(e) => handleCompromisoChange(index, "observaciones", e.target.value)}
                     />
                   </div>
 
-                  {/* 4. Fecha */}
                   <div className="grid w-full gap-1.5">
                     <Label>Fecha de Vencimiento</Label>
                     <DatePicker
-                      showIcon
-                      toggleCalendarOnIconClick
+                      disabled={comp.completado} // <-- Bloqueado
+                      showIcon={!comp.completado}
+                      toggleCalendarOnIconClick={!comp.completado}
                       selected={comp.fecha_vencimiento}
                       onChange={(date) => handleCompromisoChange(index, "fecha_vencimiento", date)}
                       dateFormat="dd/MM/yyyy"
-                      className="block w-full rounded-md border border-gray-400 bg-white px-3 py-2 text-sm text-gray-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      className={`block w-full rounded-md border border-gray-400 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 ${comp.completado ? 'bg-gray-100 cursor-not-allowed text-gray-500' : 'bg-white text-gray-900'}`}
                       placeholderText="Seleccionar fecha"
                     />
                   </div>
                 </div>
               ))}
 
-              {/* Botón para agregar más compromisos */}
               <Button type="button" variant="outline" className="w-full border-dashed border-2" onClick={agregarCompromiso}>
                 + Agregar otro compromiso
               </Button>
