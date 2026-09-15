@@ -1,16 +1,20 @@
-import React from "react";
-import { Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
+import { useAuthStore } from "@/store/authStore";
 
-// Componente para proteger las rutas
 const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem("token");
+  const navigate = useNavigate();
+  // Extraemos lo que necesitamos del store
+  const { user, loading, validateSession } = useAuthStore();
 
-  // Si no hay token en localStorage, redirige al login
-  if (!token) {
-    return <Navigate to="/login" />;
-  }
+  useEffect(() => {
+    validateSession(navigate);
+  }, [validateSession, navigate]);
 
-  // Si hay token, permite el acceso a la ruta protegida
+  if (loading) return <div>Cargando sesión...</div>;
+
+  if (!user) return <Navigate to="/login" replace />;
+
   return children;
 };
 

@@ -10,13 +10,21 @@ export default function TramiteView({ id, fianza }) {
   const navigate = useNavigate();
   const [showAdd, setShowAdd] = useState(false);
   const [tramites, setTramites] = useState([]);
-  const fetchData = async () => {
-    const data = await fetchTramitesPorFianza(fianza);
-    setTramites(data.tramites);
+
+const fetchData = async () => {
+    if (fianza) { 
+      try {
+        const data = await fetchTramitesPorFianza(fianza);
+        setTramites(data.tramites);
+      } catch (error) {
+        console.error("Error al obtener los trámites:", error);
+      }
+    }
   };
+
   useEffect(() => {
     fetchData();
-  }, [id]);
+  }, [fianza]);
 
   const handleRowClick = (id_movimiento) => {
     navigate(`/tramitecliente`, {

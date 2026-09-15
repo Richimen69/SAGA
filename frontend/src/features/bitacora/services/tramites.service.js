@@ -82,3 +82,7 @@ export const getTiposFianza = async () => {
 export const getRamosFianza = async () => {
   return await fetchApi('ramos-fianza');
 };
+
+export const getCompromiso = async (id) => {
+  return await fetchApi(`compromisos/por_tramite/?tramite_id=${id}`);
+};

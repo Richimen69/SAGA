@@ -13,7 +13,10 @@ import Clientes from "./features/clientes/pages/Clientes";
 import CatalogoRPP from "./features/rpp/pages/CatalogoRPP";
 import CompararTramites from "./features/bitacora/pages/CompararTramites";
 import BilseAcademy from "./features/bilse-academy/pages/BilseAcademy";
+import { useAuthStore } from "./store/authStore";
 function App() {
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
   return (
     <div className="bg-background min-h-screen">
       <Routes>
@@ -76,7 +79,7 @@ function App() {
           element={
             <ProtectedRoute>
               <Header />
-              <VistaTramite />
+              <VistaTramite user={user} />
             </ProtectedRoute>
           }
         />

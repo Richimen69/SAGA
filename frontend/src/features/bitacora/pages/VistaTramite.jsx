@@ -5,22 +5,25 @@ import { format, parseISO } from "date-fns";
 import "react-datepicker/dist/react-datepicker.css";
 import { IconContext } from "react-icons";
 import { TbEdit } from "react-icons/tb";
-import { fetchTramitesId, deleteTramite } from "../services/tramites.service";
+import {
+  fetchTramitesId,
+  deleteTramite,
+  getCompromiso,
+} from "../services/tramites.service";
 import { Toaster, toast } from "sonner";
 import CancelarComp from "@/features/bitacora/components/modals/CancelarComp";
 import { estatusTerminados } from "@/shared/utils/Constans";
-import { obtenerTareasTramite } from "@/features/bitacora/services/tareas";
 import {
   Trash2,
   Info,
   CheckCircle,
   MessageSquare,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
 } from "lucide-react";
-import { DeleteModal } from "@/features/bitacora/components/modals/ConfirmacionElim"; 
+import { DeleteModal } from "@/features/bitacora/components/modals/ConfirmacionElim";
 
-function VistaTramite() {
+function VistaTramite(user) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedTramite, setSelectedTramite] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -34,21 +37,17 @@ function VistaTramite() {
   const [dias, setDias] = useState("");
   const [showDialog, setShowDialog] = useState(false);
   const { id, listaIds } = location.state || {};
-
-  useEffect(() => {
-    const fetchData = async () => {
-      const data = await obtenerTareasTramite(id);
-      setTareas(data);
-    };
-    fetchData();
-  }, [id]);
-
+  const [selectedCompromisoId, setSelectedCompromisoId] = useState(null);
   useEffect(() => {
     const fetchData = async () => {
       try {
         const clienteEncontrado = await fetchTramitesId(id);
+        const compromisosEncontrados = await getCompromiso(
+          id,
+          clienteEncontrado.data.cliente_id,
+        );
         setClientes(clienteEncontrado.data);
-        setCompromiso(clienteEncontrado.data.compromisos_detalle[0]);
+        setCompromiso(compromisosEncontrados);
         if (clienteEncontrado) {
           const movimientosData = clienteEncontrado.data.observaciones_detalle;
           if (Array.isArray(movimientosData) && movimientosData.length > 0) {
@@ -307,69 +306,102 @@ function VistaTramite() {
             </div>
 
             {/* Compromisos */}
-            {compromisos && (
+            {compromisos && compromisos.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <h2 className="text-lg font-bold text-[#003f4f] mb-4">
                   Compromisos
                 </h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">
-                      Compromiso
-                    </p>
-                    <p className="font-medium">{compromisos.categoria}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">
-                      Fecha Compromiso
-                    </p>
-                    <p className="font-medium">
-                      {compromisos?.fecha_vencimiento
-                        ? format(
-                            parseISO(compromisos.fecha_vencimiento),
-                            "dd/MM/yyyy",
-                          )
-                        : ""}
-                    </p>
-                  </div>
-
-                  {compromisos.completado === false ? (
-                    <div className="col-span-2">
-                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">
-                        Observaciones
-                      </p>
-                      <div className="flex gap-2 items-center">
-                        <span className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm font-medium">
-                          {compromisos.observaciones}
+                <div className="space-y-6">
+                  {/* Contenedor con espacio entre compromisos */}
+                  {compromisos.map((comp, index) => (
+                    <div
+                      key={comp.id || index}
+                      className="border-b border-gray-100 last:border-0 pb-6 last:pb-0"
+                    >
+                      {/* Fila superior: Responsable y Status */}
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="font-bold text-gray-700 text-sm">
+                          Responsable: {comp.nombre_persona || "N/A"}
                         </span>
-                        <button
-                          onClick={() => setShowDialog(true)}
-                          className="p-2 border border-gray-300 rounded hover:bg-gray-50"
+                        <span
+                          className={`text-xs px-2 py-1 rounded-full font-bold ${comp.completado ? "bg-green-100 text-green-700" : comp.esta_vencido ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}
                         >
-                          ...
-                        </button>
+                          {comp.completado
+                            ? "Completado"
+                            : comp.esta_vencido
+                              ? "Vencido"
+                              : "Pendiente"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">
+                            Compromiso
+                          </p>
+                          <p className="font-medium">{comp.categoria}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">
+                            Fecha Compromiso
+                          </p>
+                          <p className="font-medium">
+                            {comp.fecha_vencimiento
+                              ? format(
+                                  parseISO(comp.fecha_vencimiento),
+                                  "dd/MM/yyyy",
+                                )
+                              : ""}
+                          </p>
+                        </div>
+
+                        {comp.completado === false ? (
+                          <div className="col-span-2">
+                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">
+                              Observaciones
+                            </p>
+                            <div className="flex gap-2 items-center">
+                              <span className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm font-medium">
+                                {comp.observaciones}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setSelectedCompromisoId(comp.id);
+                                  setShowDialog(true);
+                                }}
+                                title="Completar compromiso"
+                                className="flex items-center justify-center p-2 border border-gray-300 text-gray-500 rounded-md hover:bg-green-50 hover:text-green-600 hover:border-green-300 transition-all duration-200 shadow-sm"
+                              >
+                                <CheckCircle size={18} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div>
+                              <p className="text-xs font-bold text-gray-400 uppercase mb-1">
+                                Completado el
+                              </p>
+                              <p className="font-medium">
+                                {comp.fecha_completado}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-gray-400 uppercase mb-1">
+                                Notas de cierre
+                              </p>
+                              <p
+                                className="font-medium truncate"
+                                title={comp.completado_por}
+                              >
+                                {comp.completado_por || "-"}
+                              </p>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
-                  ) : (
-                    <>
-                      <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase mb-1">
-                          Completado el
-                        </p>
-                        <p className="font-medium">
-                          {compromisos?.fecha_completado}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase mb-1">
-                          Observaciones
-                        </p>
-                        <p className="font-medium">
-                          {compromisos?.completado_por}
-                        </p>
-                      </div>
-                    </>
-                  )}
+                  ))}
                 </div>
               </div>
             )}
@@ -553,53 +585,16 @@ function VistaTramite() {
             />
           </div>
         )}
-
-        {tareas.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden mt-8 border border-gray-100">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-[#003f4f]">
-                Estado de Tareas del Trámite
-              </h2>
-            </div>
-            <div className="divide-y divide-gray-100">
-              {tareas.map((dato, index) => (
-                <div
-                  key={index}
-                  className="flex flex-col md:flex-row md:items-center justify-between p-6 hover:bg-gray-50"
-                >
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-800">
-                      {dato.nombre}
-                    </h3>
-                    {dato.completado === 1 && (
-                      <p className="mt-1 text-xs text-gray-500">
-                        Completado el: {dato.fecha_completado}
-                      </p>
-                    )}
-                  </div>
-                  <div className="mt-2 md:mt-0">
-                    <span
-                      className={`text-xs font-bold px-3 py-1 rounded uppercase tracking-wider ${
-                        dato.completado === 1
-                          ? "bg-[#107c41] text-white"
-                          : "bg-gray-200 text-gray-600"
-                      }`}
-                    >
-                      {dato.completado === 1 ? "Completado" : "Pendiente"}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {showDialog && (
         <CancelarComp
-          onClose={() => setShowDialog(false)}
+          onClose={() => {
+            setShowDialog(false);
+            setSelectedCompromisoId(null);
+          }}
           tramite={clientes}
-          compromiso={compromisos?.id || null}
+          compromiso={selectedCompromisoId}
         />
       )}
       <Toaster position="top-center" richColors />
