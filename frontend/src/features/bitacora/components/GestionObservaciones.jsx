@@ -9,13 +9,11 @@ import {
 } from "@/features/bitacora/services/movimientos.service";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-
 function GestionObservaciones({ tramiteId, usuario }) {
   const [observaciones, setObservaciones] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [observacionEditada, setObservacionEditada] = useState("");
   const [nuevaObservacion, setNuevaObservacion] = useState("");
-
   useEffect(() => {
     if (tramiteId) fetchObservaciones();
   }, [tramiteId]);
@@ -48,12 +46,12 @@ function GestionObservaciones({ tramiteId, usuario }) {
     const data = {
       observacion: nuevaObservacion,
       fecha,
-      nombre: usuario.usuario_usu,
+      nombre: usuario.username,
       tramite: tramiteId,
     };
     try {
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Timeout")), 2000)
+        setTimeout(() => reject(new Error("Timeout")), 2000),
       );
 
       const result = await Promise.race([
@@ -76,7 +74,7 @@ function GestionObservaciones({ tramiteId, usuario }) {
       const data = {
         observacion: observacionEditada,
         fecha: new Date().toISOString().split("T")[0],
-        nombre: usuario.usuario_usu,
+        nombre: usuario.username,
         id: id_observacion,
         tramite: tramiteId,
       };
@@ -123,16 +121,21 @@ function GestionObservaciones({ tramiteId, usuario }) {
       {/* Línea de tiempo de observaciones */}
       <div className="relative border-l border-gray-300 ml-3 space-y-6 pb-4">
         {observaciones.length === 0 ? (
-          <p className="pl-6 text-sm text-gray-500 italic">No hay observaciones registradas.</p>
+          <p className="pl-6 text-sm text-gray-500 italic">
+            No hay observaciones registradas.
+          </p>
         ) : (
           observaciones.map((dato, index) => {
             const isEditing = editingId === dato.id;
 
             return (
-              <div key={dato.id || `obs-${index}`} className="relative pl-6 group">
+              <div
+                key={dato.id || `obs-${index}`}
+                className="relative pl-6 group"
+              >
                 {/* Círculo de la línea de tiempo */}
                 <div className="absolute -left-[9px] top-4 w-4 h-4 rounded-full border-2 border-[#003f4f] bg-white"></div>
-                
+
                 <div className="bg-[#f8f9fa] rounded-lg p-4 border border-transparent transition-colors hover:border-gray-200">
                   {isEditing ? (
                     /* MODO EDICIÓN */
@@ -176,7 +179,7 @@ function GestionObservaciones({ tramiteId, usuario }) {
                           })}
                         </span>
                       </div>
-                      
+
                       <p className="text-sm text-gray-700 whitespace-pre-wrap mt-1">
                         {dato.observacion}
                       </p>

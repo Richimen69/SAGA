@@ -1,18 +1,19 @@
 import API_CONFIG from '@/shared/config/apiConfig';
 
-/**
- * Función principal para hacer peticiones a la API
- * @param {string} endpoint - Endpoint de la API (sin el baseURL)
- * @param {Object} options - Opciones de fetch (method, body, headers, etc.)
- * @returns {Promise} - Respuesta de la API en formato estandarizado
- */
 const fetchApi = async (endpoint, options = {}) => {
   const url = `${API_CONFIG.BASE_URL}/${endpoint}`;
+  
   
   const headers = {
     ...API_CONFIG.DEFAULT_HEADERS,
     ...options.headers,
   };
+
+  // NUEVO: Recuperamos el token JWT y lo inyectamos dinámicamente
+  const token = localStorage.getItem('token');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
   if (options.body instanceof FormData) {
     delete headers['Content-Type'];
@@ -21,6 +22,7 @@ const fetchApi = async (endpoint, options = {}) => {
   const config = {
     ...options,
     headers,
+    credentials: 'omit',
   };
 
   try {
@@ -34,42 +36,31 @@ const fetchApi = async (endpoint, options = {}) => {
 
     clearTimeout(timeoutId);
 
-
-    if (response.status === 204) {
-      return { 
-        success: true, 
-        message: 'Operación exitosa',
-        data: null 
-      };
+    // NUEVO: Si Django responde 401 (No autorizado/Expirado), limpiamos y mandamos al login
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+      return { success: false, message: 'Sesión expirada' };
     }
 
-    // Intentar parsear la respuesta como JSON
+    if (response.status === 204) {
+      return { success: true, message: 'Operación exitosa', data: null };
+    }
+
     let data;
     try {
       data = await response.json();
     } catch {
-      data = { 
-        success: false, 
-        message: 'La respuesta del servidor no es válida',
-        errors: {}
-      };
+      data = { success: false, message: 'La respuesta del servidor no es válida', errors: {} };
     }
     return data;
     
   } catch (error) {
     if (error.name === 'AbortError') {
-      return {
-        success: false,
-        message: 'La solicitud ha excedido el tiempo de espera',
-        errors: {}
-      };
+      return { success: false, message: 'La solicitud ha excedido el tiempo de espera', errors: {} };
     }
-    
-    return {
-      success: false,
-      message: error.message || 'Error de conexión',
-      errors: {}
-    };
+    return { success: false, message: error.message || 'Error de conexión', errors: {} };
   }
 };
 

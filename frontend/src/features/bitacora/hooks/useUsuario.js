@@ -9,7 +9,6 @@ const useUsuario = () => {
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
-    
     if (storedUser) {
       try {
         const user = JSON.parse(storedUser);

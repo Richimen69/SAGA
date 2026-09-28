@@ -76,7 +76,7 @@ export const completarCompromiso= async (data, id) => {
 };
 
 export const getTiposFianza = async () => {
-  return await fetchApi('tipos-fianza');
+  return await fetchApi('tipos-fianza/');
 };
 
 export const getRamosFianza = async () => {

@@ -1,43 +1,15 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../../store/authStore";
+
 const useProtectedData = () => {
   const navigate = useNavigate();
+  const validateSession = useAuthStore((state) => state.validateSession);
+
   useEffect(() => {
-    const fetchProtectedData = async () => {
-      const token = localStorage.getItem("token");
-
-      if (!token) {
-        navigate("/login");
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          "https://bitacorabc.site/backend/ruta_protegida.php",
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        const data = await response.json();
-
-        if (data.status === "success") {
-          localStorage.setItem("user", JSON.stringify(data.user));
-
-        } else {
-          console.error("Error de autenticación:", data.message);
-          navigate("/login");
-        }
-      } catch (error) {
-        console.error("Error al acceder a la ruta protegida:", error);
-      }
-    };
-
-    fetchProtectedData();
-  }, [navigate]);
+    // Solo le decimos al store que valide la sesión y le pasamos 'navigate' para que pueda redirigir
+    validateSession(navigate);
+  }, [navigate, validateSession]);
 };
 
 export default useProtectedData;

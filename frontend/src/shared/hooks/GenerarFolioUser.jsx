@@ -28,7 +28,7 @@ export default function useGenerarFolio() {
             return;
         }
 
-        const usuarioInicial = user.usuario_usu.charAt(0).toUpperCase();
+        const usuarioInicial = user.username.charAt(0).toUpperCase();
         
         // Función de cálculo
         const generarNuevoFolio = () => {

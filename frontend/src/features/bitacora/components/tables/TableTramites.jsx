@@ -40,6 +40,7 @@ export default function TableTramites() {
     estatus: localStorage.getItem("estatusFiltro") || "",
     estatus_pago: localStorage.getItem("pagoFilter") || "",
     agente_nombre: localStorage.getItem("agenteFiltro") || "",
+    afianzadora_id: localStorage.getItem("afianzadoraFiltro") || "",
   }));
 
   // --- Estado de catálogos ---
@@ -48,15 +49,17 @@ export default function TableTramites() {
   const [isFormVisible, setIsFormVisible] = useState(false);
 
   // --- Cargar catálogos ---
-  useEffect(() => {
+useEffect(() => {
     const loadCatalogos = async () => {
       try {
         const [movimientosData, estatusData] = await Promise.all([
           fetchMovimientos(),
           fetchEstatus(),
         ]);
-        setMovimientos(movimientosData.results);
-        setEstatus(estatusData.results);
+        
+        // Verifica si la respuesta es directamente el arreglo de datos, o si viene en .results
+        setMovimientos(Array.isArray(movimientosData) ? movimientosData : (movimientosData?.results || []));
+        setEstatus(Array.isArray(estatusData) ? estatusData : (estatusData?.results || []));
       } catch (error) {
         console.error("Error al cargar catálogos:", error);
       }
@@ -67,9 +70,9 @@ export default function TableTramites() {
   useEffect(() => {
     if (catalogosLoading) return;
     const { afianzadoras } = catalogos;
-    console.log(afianzadoras);
-    setAfianzadoras(afianzadoras);
+    setAfianzadoras(afianzadoras || []);
   }, [catalogos, catalogosLoading]);
+
 
   // --- Obtener trámites con filtros del servidor ---
   const obtenerTramites = useCallback(
@@ -77,16 +80,20 @@ export default function TableTramites() {
       setLoading(true);
       try {
         const data = await fetchTramites(page, filters);
-        setTramites(data.data);
+        // Validamos la estructura de los datos para evitar undefined
+        const resultados = Array.isArray(data) ? data : (data?.data || data?.results || []);
+        console.log(resultados);
+        setTramites(resultados);
         setPagination({
-          count: data.count,
+          count: data?.count || 0,
           currentPage: page,
-          totalPages: Math.ceil(data.count / PAGE_SIZE),
-          next: data.next,
-          previous: data.previous,
+          totalPages: Math.ceil((data?.count || 0) / PAGE_SIZE),
+          next: data?.next || null,
+          previous: data?.previous || null,
         });
       } catch (error) {
         console.error("Error al obtener los trámites:", error);
+        setTramites([]); // Fallback
       } finally {
         setLoading(false);
       }
@@ -97,22 +104,26 @@ export default function TableTramites() {
   // --- Cargar datos cuando cambian los filtros ---
   useEffect(() => {
     obtenerTramites(1); // Siempre volver a página 1 cuando cambian filtros
-  }, [filters]);
+  }, [filters, obtenerTramites]);
 
   // --- Guardar filtros en localStorage ---
   useEffect(() => {
     localStorage.setItem("searchQuery", filters.search);
-
     localStorage.setItem("searchQueryFianza", filters.numero_fianza);
     localStorage.setItem("movimientoFiltro", filters.movimiento);
     localStorage.setItem("estatusFiltro", filters.estatus);
     localStorage.setItem("pagoFilter", filters.estatus_pago);
-    localStorage.setItem("afianzadoraFiltro", filters.afianzadora);
+    localStorage.setItem("afianzadoraFiltro", filters.afianzadora_id || "");
   }, [filters]);
 
   // --- Handlers de filtros (con debounce para inputs de texto) ---
   const [searchTimeout, setSearchTimeout] = useState(null);
-  const listaDeIds = tramites.map((t) => t.id);
+  
+  // SOLUCIÓN 2: Protección con optional chaining para map
+  const tramitesList = Array.isArray(tramites) ? tramites : [];
+  const listaDeIds = tramitesList.map((t) => t.id);
+  const listaIds = tramitesList.map((t) => t.id);
+
   const handleSearchChange = (field, value) => {
     // Limpiar timeout anterior
     if (searchTimeout) clearTimeout(searchTimeout);
@@ -148,12 +159,14 @@ export default function TableTramites() {
       movimiento: "",
       estatus: "",
       estatus_pago: "",
+      agente_nombre: "",
+      afianzadora_id: "",
     });
   };
-  const listaIds = tramites.map(t => t.id);
+
   // --- Verificar si hay filtros activos ---
   const hayFiltrosActivos = Object.values(filters).some((v) => v !== "");
-  const tramitesList = Array.isArray(tramites) ? tramites : [];
+  
   return (
     <div className="w-full p-5">
       <div className="flex flex-col space-y-6">
@@ -398,8 +411,9 @@ export default function TableTramites() {
                   </td>
                 </tr>
               ) : (
-                tramites.map((tramite) => (
-                  <TramiteRow key={tramite.id} tramite={tramite} listaIds={listaIds}/>
+                tramitesList.map((tramite, index) => (
+                  // SOLUCIÓN 1: Llave única combinando ID y el índice del mapa
+                  <TramiteRow key={`${tramite.id}-${index}`} tramite={tramite} listaIds={listaIds}/>
                 ))
               )}
             </tbody>
@@ -454,7 +468,7 @@ export default function TableTramites() {
 
                   return (
                     <button
-                      key={pageNum}
+                      key={`page-${pageNum}`}
                       onClick={() => goToPage(pageNum)}
                       disabled={loading}
                       className={`px-3 py-1 text-sm border rounded-md ${

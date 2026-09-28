@@ -89,7 +89,7 @@ const FormularioTramite = ({ isVisible, onClose, onSuccess }) => {
     }
 
     const data = {
-      creado_por: usuario.usuario_usu,
+      creado_por: usuario.username,
       fecha: formData.fecha,
       cliente_id: formData.cliente.value,
       cliente_nombre: formData.cliente.label,

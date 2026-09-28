@@ -39,7 +39,6 @@ export function PendientesBC({
   const usuario = useUsuario();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-
   // 1. Estado inicial actualizado para incluir el flag "completado"
   const [compromisosList, setCompromisosList] = useState([
     {
@@ -159,7 +158,7 @@ export function PendientesBC({
       estatus_pago: datosCliente.estatusPago || null,
       tiene_compromiso: tieneCompromisoValue || null,
       observacion_compromiso: compromisosList[0]?.observaciones || null,
-      creado_por: usuario.usuario_usu,
+      creado_por: usuario.username,
       tipo_proceso: estadoTramite || "",
       tipo_fianza: datosCliente.tipo_fianza || "",
       relativo_a: datosCliente.relativo_a || ""
@@ -176,7 +175,7 @@ export function PendientesBC({
             categoria: comp.categoria,
             observaciones: comp.observaciones,
             fecha_vencimiento: comp.fecha_vencimiento ? formatToISO(comp.fecha_vencimiento) : null,
-            creado_por: usuario.usuario_usu,
+            creado_por: usuario.username,
           };
 
           if (comp.id) {

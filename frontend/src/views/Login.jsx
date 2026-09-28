@@ -3,6 +3,8 @@ import LogoPrincipal from "../assets/logos/LogoPrincipal.svg";
 import Next from "../assets/botones/next.svg";
 import LogoPrincipalBlanco from "../assets/logos/LogoPrincipalBlanco.png";
 import { useNavigate } from "react-router-dom";
+import fetchApi from "../shared/services/apiNew"; // Usamos tu wrapper
+
 function Login() {
   const [user, setUser] = useState("");
   const [password, setPassword] = useState("");
@@ -21,25 +23,29 @@ function Login() {
     setLoading(true);
     
     try {
-      const response = await fetch('https://bitacorabc.site/backend/login.php', {
+      // Usamos fetchApi directo al endpoint de Django.
+      // Django requiere los nombres "username" y "password"
+      const response = await fetchApi('login/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
-          usuario_usu: user,
-          contrasena_usu: password
+          username: user,
+          password: password
         }),
       });
   
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        // Guardar el token JWT en localStorage
-        localStorage.setItem('token', data.token);
+      // SimpleJWT devuelve el token en la variable 'access'
+      if (response.access) {
+        localStorage.setItem('token', response.access);
+        
+        // Si tu vista en Django envía datos de usuario, los guardamos también
+        if (response.user) {
+          localStorage.setItem('user', JSON.stringify(response.user));
+        }
+
         navigate("/");
       } else {
-        setError(data.message || "Credenciales incorrectas.");
+        // SimpleJWT suele devolver el mensaje de error en 'detail'
+        setError(response.detail || "Credenciales incorrectas.");
       }
     } catch (error) {
       console.error('Error al iniciar sesión:', error);
@@ -48,9 +54,6 @@ function Login() {
       setLoading(false);
     }
   };
-  
-
-
 
   return (
     <div
