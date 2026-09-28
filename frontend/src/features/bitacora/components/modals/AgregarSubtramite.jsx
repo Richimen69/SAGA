@@ -100,7 +100,7 @@ export default function AgregarSubtramite({ isOpen, onClose, id }) {
     // 3. Mapear y transformar el objeto de envío (Aplicando el signo a los NÚMEROS)
     const dataToSend = {
       // Datos constantes o de origen simple
-      creado_por: usuario.usuario_usu,
+      creado_por: usuario.username,
       folio: nuevoFolio,
       fecha: toISODate(formData.fechaNew),
       agente_id: formData.agente_id,

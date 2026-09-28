@@ -35,7 +35,7 @@ export default function CancelarComp({ onClose, compromiso, tramite }) {
     const tramiteData = {
       estatus: 18,
       fecha: tramite.fecha,
-      creado_por: usuario.usuario_usu,
+      creado_por: usuario.username,
     };
     try {
       const result = await completarCompromiso(data, compromiso);
