@@ -1,27 +1,58 @@
-import React, { useEffect, useState, useCallback } from "react";
-import FormularioTramite from "@/features/bitacora/components/forms/FormularioTramite";
-import TramiteRow from "./TramiteRow";
-
-import { Toaster } from "sonner";
-import { useUsuario, useCatalogos } from "../../hooks";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
+} from "@tanstack/react-table";
+import { format, parseISO } from "date-fns";
+import { Toaster, toast } from "sonner";
 import { FiChevronDown, FiChevronLeft, FiChevronRight } from "react-icons/fi";
-import { fetchTramites } from "../../services/tramites.service";
+import { MessageSquare, Edit } from "lucide-react";
+
+// Hooks y Servicios
+import { useUsuario, useCatalogos } from "../../hooks";
+import {
+  fetchTramites,
+  actualizarEstatusTramite,
+} from "../../services/tramites.service";
 import {
   fetchMovimientos,
   fetchEstatus,
 } from "../../services/catalogos.service";
-import { useNavigate } from "react-router-dom";
+import fetchApi from "@/shared/services/apiNew";
+
+// Componentes
+import FormularioTramite from "@/features/bitacora/components/forms/FormularioTramite";
+import TramiteCliente from "../../pages/TramiteCliente";
+import GestionObservaciones from "../../components/GestionObservaciones";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { statusStyles } from "@/shared/utils/Constans";
 
 const FILTERS_PAGO = ["PAGADA", "SE MANDÓ RECIBO", "NO PAGADA", "PENDIENTE"];
 const PAGE_SIZE = 50;
 
 export default function TableTramites() {
   const navigate = useNavigate();
+  const usuario = useUsuario();
+  const { catalogos, loading: catalogosLoading } = useCatalogos();
   // --- Estado de datos ---
   const [tramites, setTramites] = useState([]);
   const [loading, setLoading] = useState(false);
   const [afianzadoras, setAfianzadoras] = useState([]);
-  const { catalogos, loading: catalogosLoading } = useCatalogos();
+  const [movimientos, setMovimientos] = useState([]);
+  const [estatus, setEstatus] = useState([]);
+  const [isFormVisible, setIsFormVisible] = useState(false);
+
+  // --- Estados para Modales ---
+  const [modalEdicion, setModalEdicion] = useState({
+    isOpen: false,
+    tramiteId: null,
+  });
+  const [modalObservaciones, setModalObservaciones] = useState({
+    isOpen: false,
+    tramiteId: null,
+  });
 
   // --- Estado de paginación ---
   const [pagination, setPagination] = useState({
@@ -32,7 +63,7 @@ export default function TableTramites() {
     previous: null,
   });
 
-  // --- Estado de filtros (guardados en localStorage) ---
+  // --- Estado de filtros ---
   const [filters, setFilters] = useState(() => ({
     search: localStorage.getItem("searchQuery") || "",
     numero_fianza: localStorage.getItem("searchQueryFianza") || "",
@@ -43,23 +74,22 @@ export default function TableTramites() {
     afianzadora_id: localStorage.getItem("afianzadoraFiltro") || "",
   }));
 
-  // --- Estado de catálogos ---
-  const [movimientos, setMovimientos] = useState([]);
-  const [estatus, setEstatus] = useState([]);
-  const [isFormVisible, setIsFormVisible] = useState(false);
-
   // --- Cargar catálogos ---
-useEffect(() => {
+  useEffect(() => {
     const loadCatalogos = async () => {
       try {
         const [movimientosData, estatusData] = await Promise.all([
           fetchMovimientos(),
           fetchEstatus(),
         ]);
-        
-        // Verifica si la respuesta es directamente el arreglo de datos, o si viene en .results
-        setMovimientos(Array.isArray(movimientosData) ? movimientosData : (movimientosData?.results || []));
-        setEstatus(Array.isArray(estatusData) ? estatusData : (estatusData?.results || []));
+        setMovimientos(
+          Array.isArray(movimientosData)
+            ? movimientosData
+            : movimientosData?.results || [],
+        );
+        setEstatus(
+          Array.isArray(estatusData) ? estatusData : estatusData?.results || [],
+        );
       } catch (error) {
         console.error("Error al cargar catálogos:", error);
       }
@@ -69,20 +99,18 @@ useEffect(() => {
 
   useEffect(() => {
     if (catalogosLoading) return;
-    const { afianzadoras } = catalogos;
-    setAfianzadoras(afianzadoras || []);
+    setAfianzadoras(catalogos?.afianzadoras || []);
   }, [catalogos, catalogosLoading]);
 
-
-  // --- Obtener trámites con filtros del servidor ---
+  // --- Obtener trámites ---
   const obtenerTramites = useCallback(
     async (page = 1) => {
       setLoading(true);
       try {
         const data = await fetchTramites(page, filters);
-        // Validamos la estructura de los datos para evitar undefined
-        const resultados = Array.isArray(data) ? data : (data?.data || data?.results || []);
-        console.log(resultados);
+        const resultados = Array.isArray(data)
+          ? data
+          : data?.data || data?.results || [];
         setTramites(resultados);
         setPagination({
           count: data?.count || 0,
@@ -93,7 +121,7 @@ useEffect(() => {
         });
       } catch (error) {
         console.error("Error al obtener los trámites:", error);
-        setTramites([]); // Fallback
+        setTramites([]);
       } finally {
         setLoading(false);
       }
@@ -101,12 +129,10 @@ useEffect(() => {
     [filters],
   );
 
-  // --- Cargar datos cuando cambian los filtros ---
   useEffect(() => {
-    obtenerTramites(1); // Siempre volver a página 1 cuando cambian filtros
+    obtenerTramites(1);
   }, [filters, obtenerTramites]);
 
-  // --- Guardar filtros en localStorage ---
   useEffect(() => {
     localStorage.setItem("searchQuery", filters.search);
     localStorage.setItem("searchQueryFianza", filters.numero_fianza);
@@ -116,42 +142,140 @@ useEffect(() => {
     localStorage.setItem("afianzadoraFiltro", filters.afianzadora_id || "");
   }, [filters]);
 
-  // --- Handlers de filtros (con debounce para inputs de texto) ---
-  const [searchTimeout, setSearchTimeout] = useState(null);
-  
-  // SOLUCIÓN 2: Protección con optional chaining para map
-  const tramitesList = Array.isArray(tramites) ? tramites : [];
-  const listaDeIds = tramitesList.map((t) => t.id);
-  const listaIds = tramitesList.map((t) => t.id);
+  // --- Actualización de Estatus Inline ---
+  const actualizarEstatusRapido = async (tramiteId, nuevoEstatusNombre) => {
+    try {
+      // 1. Buscar el ID del estatus seleccionado del catálogo
+      const estatusObj = estatus.find((e) => e.nombre === nuevoEstatusNombre);
+      if (!estatusObj) return;
 
-  const handleSearchChange = (field, value) => {
-    // Limpiar timeout anterior
-    if (searchTimeout) clearTimeout(searchTimeout);
+      // 2. Usar tu servicio centralizado
+      const response = await actualizarEstatusTramite(tramiteId, estatusObj.id);
 
-    // Crear nuevo timeout para esperar que el usuario termine de escribir
-    const timeout = setTimeout(() => {
-      setFilters((prev) => ({ ...prev, [field]: value }));
-    }, 500); // Espera 500ms después de que el usuario deje de escribir
+      // Si tu fetchApi devuelve el error o no es exitoso
+      if (response?.error) {
+        throw new Error(response.error);
+      }
 
-    setSearchTimeout(timeout);
+      toast.success("Estatus actualizado exitosamente");
+      obtenerTramites(pagination.currentPage); // Refresca la tabla para ver el cambio
+    } catch (error) {
+      toast.error(
+        `Error al actualizar: ${error.message || "Fallo en el servidor"}`,
+      );
+      console.error("Detalle del error:", error);
+    }
   };
+
+  // --- Definición de Columnas para TanStack Table ---
+  const columns = useMemo(
+    () => [
+      { accessorKey: "folio", header: "Folio" },
+      { accessorKey: "beneficiario_nombre", header: "Beneficiario" },
+      { accessorKey: "numero_fianza", header: "Fianza" },
+      { accessorKey: "cliente_nombre", header: "Nombre" },
+      {
+        accessorKey: "fecha",
+        header: "Fecha",
+        cell: ({ row }) => {
+          const fecha = row.original.fecha;
+          if (!fecha) return "";
+          try {
+            return format(parseISO(fecha), "dd/MM/yyyy");
+          } catch (e) {
+            return fecha;
+          }
+        },
+      },
+      { accessorKey: "movimiento_nombre", header: "Movimiento" },
+      { accessorKey: "afianzadora_nombre", header: "Afianzadora" },
+      {
+        accessorKey: "estatus_nombre",
+        header: "Estatus",
+        cell: ({ row }) => {
+          const tramite = row.original;
+          return (
+            <select
+              className={`border border-transparent rounded-md p-1.5 text-xs font-bold cursor-pointer outline-none focus:ring-2 focus:ring-primary ${
+                statusStyles[tramite.estatus_nombre] ||
+                "bg-gray-200 text-gray-700"
+              }`}
+              value={tramite.estatus_nombre}
+              onChange={(e) =>
+                actualizarEstatusRapido(tramite.id, e.target.value)
+              }
+              onClick={(e) => e.stopPropagation()}
+            >
+              <option value={tramite.estatus_nombre}>
+                {tramite.estatus_nombre}
+              </option>
+              {estatus
+                .filter((e) => e.nombre !== tramite.estatus_nombre)
+                .map((e) => (
+                  <option key={e.id} value={e.nombre}>
+                    {e.nombre}
+                  </option>
+                ))}
+            </select>
+          );
+        },
+      },
+      { accessorKey: "tipo_proceso", header: "Responsable" },
+      { accessorKey: "estatus_pago", header: "Pago" },
+      {
+        id: "observaciones",
+        header: "Obs.",
+        cell: ({ row }) => (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setModalObservaciones({
+                isOpen: true,
+                tramiteId: row.original.id,
+              });
+            }}
+            className="flex items-center justify-center p-2 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-200 transition-colors"
+            title="Ver/Agregar Observaciones"
+          >
+            <MessageSquare size={16} />
+          </button>
+        ),
+      },
+      {
+        id: "acciones",
+        header: "Acciones",
+        cell: ({ row }) => (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setModalEdicion({ isOpen: true, tramiteId: row.original.id });
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 bg-[#003f4f] text-white rounded-md hover:bg-[#002b36] transition-colors text-xs font-medium"
+            title="Edición Completa"
+          >
+            <Edit size={14} /> Editar
+          </button>
+        ),
+      },
+    ],
+    [estatus, pagination.currentPage],
+  );
+
+  // --- Instancia de TanStack Table ---
+  const tramitesList = Array.isArray(tramites) ? tramites : [];
+  const table = useReactTable({
+    data: tramitesList,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
+  // --- Filtros Handlers ---
+  const [searchTimeout, setSearchTimeout] = useState(null);
 
   const handleSelectChange = (field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
   };
 
-  // --- Funciones de paginación ---
-  const goToPage = (page) => {
-    if (page >= 1 && page <= pagination.totalPages) {
-      obtenerTramites(page);
-    }
-  };
-
-  const handleFormSuccess = () => {
-    obtenerTramites(pagination.currentPage);
-  };
-
-  // --- Limpiar todos los filtros ---
   const limpiarFiltros = () => {
     setFilters({
       search: "",
@@ -164,12 +288,15 @@ useEffect(() => {
     });
   };
 
-  // --- Verificar si hay filtros activos ---
   const hayFiltrosActivos = Object.values(filters).some((v) => v !== "");
-  
+  const goToPage = (page) => {
+    if (page >= 1 && page <= pagination.totalPages) obtenerTramites(page);
+  };
+
   return (
     <div className="w-full p-5">
       <div className="flex flex-col space-y-6">
+        {/* ENCABEZADO */}
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-semibold tracking-tight text-gray-900">
             Trámites
@@ -179,7 +306,7 @@ useEffect(() => {
           </span>
         </div>
 
-        {/* Contenedor de filtros */}
+        {/* FILTROS */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4">
           <div className="md:col-span-1">
             <input
@@ -193,7 +320,7 @@ useEffect(() => {
                   setFilters((prev) => ({
                     ...prev,
                     search: value,
-                    numero_fianza: "", // ← limpiar, no duplicar
+                    numero_fianza: "",
                   }));
                 }, 500);
                 setSearchTimeout(timeout);
@@ -202,7 +329,6 @@ useEffect(() => {
             />
           </div>
 
-          {/* Select movimiento */}
           <div className="relative">
             <select
               value={filters.movimiento}
@@ -210,16 +336,16 @@ useEffect(() => {
               className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary appearance-none cursor-pointer"
             >
               <option value="">Todos los movimientos</option>
-              {movimientos.map((movimiento) => (
-                <option key={movimiento.id} value={movimiento.nombre}>
-                  {movimiento.nombre}
+              {movimientos.map((m) => (
+                <option key={m.id} value={m.nombre}>
+                  {m.nombre}
                 </option>
               ))}
             </select>
             <FiChevronDown className="absolute top-1/2 right-4 transform -translate-y-1/2 pointer-events-none text-gray-500" />
           </div>
 
-          <div className="flex items-center gap-4 relative col-span-1f">
+          <div className="flex items-center gap-4 relative col-span-1">
             <div className="relative w-full">
               <select
                 value={filters.estatus_pago}
@@ -241,14 +367,13 @@ useEffect(() => {
             {hayFiltrosActivos && (
               <button
                 onClick={limpiarFiltros}
-                className="text-sm text-gray-500 hover:text-gray-700 underline"
+                className="text-sm text-gray-500 hover:text-gray-700 underline whitespace-nowrap"
               >
                 Limpiar filtros
               </button>
             )}
           </div>
 
-          {/* Estatus + botón nuevo trámite */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative w-full sm:w-auto flex-1">
               <select
@@ -257,9 +382,9 @@ useEffect(() => {
                 className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary appearance-none cursor-pointer"
               >
                 <option value="">Todos los estatus</option>
-                {estatus.map((estatusOption) => (
-                  <option key={estatusOption.id} value={estatusOption.nombre}>
-                    {estatusOption.nombre}
+                {estatus.map((e) => (
+                  <option key={e.id} value={e.nombre}>
+                    {e.nombre}
                   </option>
                 ))}
               </select>
@@ -267,7 +392,7 @@ useEffect(() => {
             </div>
 
             <button
-              className="h-10 px-4 py-2 rounded-md bg-primary text-white text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 whitespace-nowrap"
+              className="h-10 px-4 py-2 rounded-md bg-[#003f4f] text-white text-sm font-medium hover:bg-[#002b36] focus:outline-none focus:ring-2 focus:ring-green-500 whitespace-nowrap"
               onClick={() => setIsFormVisible(true)}
             >
               Nuevo trámite
@@ -275,66 +400,65 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* Filtro de pago y botón limpiar */}
         <div className="flex items-center gap-4">
           <button
-            className="h-10 px-4 py-2 rounded-md bg-primary text-white text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 whitespace-nowrap"
+            className="h-10 px-4 py-2 rounded-md bg-[#003f4f] text-white text-sm font-medium hover:bg-[#002b36] focus:outline-none whitespace-nowrap"
             onClick={() => navigate("/comparar-tramites")}
           >
             Comparar trámite
           </button>
-          <div className="flex items-center gap-4 justify-between">
-            <div className="flex items-center space-x-3">
-              <label className="group flex items-center cursor-pointer gap-3">
-                <div
-                  className={`w-8 h-8 flex justify-center items-center rounded-md border-2 shadow-md transition-all duration-300 ${
-                    filters.agente_nombre === "RBG-PP"
-                      ? "bg-primary border-primary"
-                      : "bg-gray-100 border-gray-400"
-                  }`}
-                  onClick={() =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      agente_nombre:
-                        prev.agente_nombre === "RBG-PP" ? "" : "RBG-PP",
-                    }))
-                  }
-                >
-                  {filters.agente_nombre === "RBG-PP" && (
-                    <svg
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                      className="w-5 h-5 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        clipRule="evenodd"
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 10-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z"
-                      />
-                    </svg>
-                  )}
-                </div>
-                <span className="text-gray-700 font-medium">PP</span>
-              </label>
-            </div>
+
+          <div className="flex items-center space-x-3">
+            <label className="group flex items-center cursor-pointer gap-3">
+              <div
+                className={`w-8 h-8 flex justify-center items-center rounded-md border-2 shadow-md transition-all duration-300 ${
+                  filters.agente_nombre === "RBG-PP"
+                    ? "bg-[#003f4f] border-[#003f4f]"
+                    : "bg-gray-100 border-gray-400"
+                }`}
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    agente_nombre:
+                      prev.agente_nombre === "RBG-PP" ? "" : "RBG-PP",
+                  }))
+                }
+              >
+                {filters.agente_nombre === "RBG-PP" && (
+                  <svg
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                    className="w-5 h-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      clipRule="evenodd"
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 10-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z"
+                    />
+                  </svg>
+                )}
+              </div>
+              <span className="text-gray-700 font-medium">PP</span>
+            </label>
           </div>
+
           <div className="relative sm:w-auto flex-1">
             <select
               value={filters.afianzadora_id}
               onChange={(e) => {
-                const value = e.target.value;
-                localStorage.setItem("afianzadoraFiltro", value);
-                setFilters((prev) => ({ ...prev, afianzadora_id: value }));
+                localStorage.setItem("afianzadoraFiltro", e.target.value);
+                setFilters((prev) => ({
+                  ...prev,
+                  afianzadora_id: e.target.value,
+                }));
               }}
               className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary appearance-none cursor-pointer"
             >
               <option value="">Afianzadora</option>
-              {afianzadoras.map((afianzadora) => (
-                <option key={afianzadora.value} value={afianzadora.value}>
-                  {" "}
-                  {/* ← era afianzadora.label */}
-                  {afianzadora.label}
+              {afianzadoras.map((a) => (
+                <option key={a.value} value={a.value}>
+                  {a.label}
                 </option>
               ))}
             </select>
@@ -343,48 +467,35 @@ useEffect(() => {
         </div>
       </div>
 
+      {/* RENDERIZADO DE LA TANSTACK TABLE */}
       <div className="rounded-lg border border-gray-200 overflow-hidden mt-5">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-4 py-3 text-left font-medium text-gray-600">
-                  Folio
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">
-                  Beneficiario
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">
-                  Fianza
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">
-                  Nombre
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">
-                  Fecha
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">
-                  Movimiento
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">
-                  Afianzadora
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">
-                  Estatus
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">
-                  Responsable
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">
-                  Pago
-                </th>
-              </tr>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr
+                  key={headerGroup.id}
+                  className="bg-gray-50 border-b border-gray-200"
+                >
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="px-4 py-3 text-left font-medium text-gray-600 whitespace-nowrap"
+                    >
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
             </thead>
             <tbody>
               {loading ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={columns.length}
                     className="px-4 py-8 text-center text-gray-500"
                   >
                     <div className="flex items-center justify-center gap-2">
@@ -393,76 +504,75 @@ useEffect(() => {
                     </div>
                   </td>
                 </tr>
-              ) : tramitesList.length === 0 ? (
+              ) : table.getRowModel().rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={columns.length}
                     className="px-4 py-8 text-center text-gray-500"
                   >
                     No se encontraron trámites
-                    {hayFiltrosActivos && (
-                      <button
-                        onClick={limpiarFiltros}
-                        className="ml-2 text-primary hover:underline"
-                      >
-                        Limpiar filtros
-                      </button>
-                    )}
                   </td>
                 </tr>
               ) : (
-                tramitesList.map((tramite, index) => (
-                  // SOLUCIÓN 1: Llave única combinando ID y el índice del mapa
-                  <TramiteRow key={`${tramite.id}-${index}`} tramite={tramite} listaIds={listaIds}/>
+                table.getRowModel().rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => {
+                      navigate(`/vistaprevia`, {
+                        state: {
+                          id: row.original.id,
+                          listaIds: tramitesList.map((t) => t.id),
+                        },
+                      });
+                    }}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="px-4 py-3 text-gray-800">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </td>
+                    ))}
+                  </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Controles de Paginación */}
+        {/* PAGINACIÓN */}
         {pagination.totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-200">
             <div className="text-sm text-gray-500">
-              Página {pagination.currentPage} de {pagination.totalPages}
-              {" · "}
+              Página {pagination.currentPage} de {pagination.totalPages} {" · "}{" "}
               {pagination.count.toLocaleString()} registros
             </div>
-
             <div className="flex items-center gap-2">
               <button
                 onClick={() => goToPage(1)}
                 disabled={pagination.currentPage === 1 || loading}
-                className="px-3 py-1 text-sm border rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1 text-sm border rounded-md hover:bg-gray-100 disabled:opacity-50"
               >
                 Primera
               </button>
-
               <button
                 onClick={() => goToPage(pagination.currentPage - 1)}
                 disabled={!pagination.previous || loading}
-                className="p-2 border rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 border rounded-md hover:bg-gray-100 disabled:opacity-50"
               >
                 <FiChevronLeft />
               </button>
 
-              {/* Números de página */}
               <div className="flex gap-1">
                 {[...Array(Math.min(5, pagination.totalPages))].map((_, i) => {
                   let pageNum;
-                  if (pagination.totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (pagination.currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (
-                    pagination.currentPage >=
-                    pagination.totalPages - 2
-                  ) {
+                  if (pagination.totalPages <= 5) pageNum = i + 1;
+                  else if (pagination.currentPage <= 3) pageNum = i + 1;
+                  else if (pagination.currentPage >= pagination.totalPages - 2)
                     pageNum = pagination.totalPages - 4 + i;
-                  } else {
-                    pageNum = pagination.currentPage - 2 + i;
-                  }
-
+                  else pageNum = pagination.currentPage - 2 + i;
                   if (pageNum < 1 || pageNum > pagination.totalPages)
                     return null;
 
@@ -471,11 +581,7 @@ useEffect(() => {
                       key={`page-${pageNum}`}
                       onClick={() => goToPage(pageNum)}
                       disabled={loading}
-                      className={`px-3 py-1 text-sm border rounded-md ${
-                        pageNum === pagination.currentPage
-                          ? "bg-primary text-white border-primary"
-                          : "hover:bg-gray-100"
-                      } disabled:cursor-not-allowed`}
+                      className={`px-3 py-1 text-sm border rounded-md ${pageNum === pagination.currentPage ? "bg-primary text-white border-primary" : "hover:bg-gray-100"} disabled:cursor-not-allowed`}
                     >
                       {pageNum}
                     </button>
@@ -486,17 +592,16 @@ useEffect(() => {
               <button
                 onClick={() => goToPage(pagination.currentPage + 1)}
                 disabled={!pagination.next || loading}
-                className="p-2 border rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 border rounded-md hover:bg-gray-100 disabled:opacity-50"
               >
                 <FiChevronRight />
               </button>
-
               <button
                 onClick={() => goToPage(pagination.totalPages)}
                 disabled={
                   pagination.currentPage === pagination.totalPages || loading
                 }
-                className="px-3 py-1 text-sm border rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1 text-sm border rounded-md hover:bg-gray-100 disabled:opacity-50"
               >
                 Última
               </button>
@@ -504,11 +609,52 @@ useEffect(() => {
           </div>
         )}
       </div>
+
       <FormularioTramite
         isVisible={isFormVisible}
         onClose={() => setIsFormVisible(false)}
-        onSuccess={handleFormSuccess}
+        onSuccess={() => obtenerTramites(1)}
       />
+
+      {/* MODAL: Edición Completa */}
+      <Dialog
+        open={modalEdicion.isOpen}
+        onOpenChange={(open) =>
+          setModalEdicion({ isOpen: open, tramiteId: null })
+        }
+      >
+        <DialogContent className="max-w-6xl w-full p-0 overflow-hidden bg-[#f4f6f8]">
+          <DialogTitle className="sr-only">Editar Trámite</DialogTitle>
+          {modalEdicion.tramiteId && (
+            <TramiteCliente
+              idTramite={modalEdicion.tramiteId}
+              onClose={() => {
+                setModalEdicion({ isOpen: false, tramiteId: null });
+                obtenerTramites(pagination.currentPage);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL: Observaciones */}
+      <Dialog
+        open={modalObservaciones.isOpen}
+        onOpenChange={(open) =>
+          setModalObservaciones({ isOpen: open, tramiteId: null })
+        }
+      >
+        <DialogContent className="max-w-3xl w-full p-6">
+          <DialogTitle className="sr-only">Gestionar Observaciones</DialogTitle>
+          {modalObservaciones.tramiteId && (
+            <GestionObservaciones
+              tramiteId={modalObservaciones.tramiteId}
+              usuario={usuario}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Toaster position="top-center" richColors />
     </div>
   );

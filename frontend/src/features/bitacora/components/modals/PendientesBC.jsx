@@ -23,7 +23,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { updateTramite, addCompromiso, putCompromiso } from "../../services/tramites.service";
+import { updateTramite, addCompromiso, putCompromiso, getCompromiso } from "../../services/tramites.service";
 import { useNavigate } from "react-router-dom";
 import { guardarTareaCompletada } from "@/features/bitacora/services/tareas";
 import { useUsuario } from "../../hooks";
@@ -34,7 +34,8 @@ export function PendientesBC({
   datosCliente,
   tareas,
   idMovimiento,
-  compromiso // <-- Ahora recibimos un arreglo aquí
+  compromiso,
+  cliente
 }) {
   const usuario = useUsuario();
   const navigate = useNavigate();
@@ -47,9 +48,11 @@ export function PendientesBC({
       nombre_persona: "",
       observaciones: "",
       fecha_vencimiento: null,
-      completado: false, // <-- Nuevo campo para controlar si es editable
+      completado: false, 
     }
   ]);
+  console.log(cliente.cliente_id, id);
+
 
   const obtenerFechaActual = () => {
     const hoy = new Date();
@@ -58,26 +61,34 @@ export function PendientesBC({
     const anio = hoy.getFullYear();
     return `${dia}/${mes}/${anio}`;
   };
+  
 
   useEffect(() => {
-    // 2. Modificamos el useEffect para procesar el ARREGLO de compromisos
-    if (compromiso && Array.isArray(compromiso) && compromiso.length > 0) {
-      const mapeados = compromiso.map((c) => ({
-        id: c.id,
-        categoria: c.categoria || "",
-        nombre_persona: c.nombre_persona && c.nombre_persona !== 'none' ? c.nombre_persona : "",
-        observaciones: c.observaciones || "",
-        fecha_vencimiento: c.fecha_vencimiento ? new Date(c.fecha_vencimiento) : null,
-        completado: c.completado || false, // Rescatamos si ya fue completado
-      }));
-      setCompromisosList(mapeados);
-    } else {
-      // Si no hay compromisos, inicializamos con uno vacío
-      setCompromisosList([
-        { id: null, categoria: "", nombre_persona: "", observaciones: "", fecha_vencimiento: null, completado: false }
-      ]);
+    const fetchCompromisos = async () => {
+      try {
+        const data = await getCompromiso(id, cliente.cliente_id);
+        if (data && Array.isArray(data) && data.length > 0) {
+          const mapeados = data.map((c) => ({
+            id: c.id,
+            categoria: c.categoria || "",
+            nombre_persona: c.nombre_persona && c.nombre_persona !== 'none' ? c.nombre_persona : "",
+            observaciones: c.observaciones || "",
+            fecha_vencimiento: c.fecha_vencimiento ? new Date(c.fecha_vencimiento) : null,
+            completado: c.completado || false, // Rescatamos si ya fue completado
+          }));
+          setCompromisosList(mapeados);
+        } else {
+          setCompromisosList([
+            { id: null, categoria: "", nombre_persona: "", observaciones: "", fecha_vencimiento: null, completado: false }
+          ]);
+        }
+      } catch (error) {
+        console.error("Error al obtener compromisos:", error);
+        toast.error("Hubo un problema al obtener los compromisos.");
+      }
     }
-  }, [compromiso]);
+    fetchCompromisos();
+  }, [id]);
 
   const handleCompromisoChange = (index, field, value) => {
     const newList = [...compromisosList];
@@ -189,7 +200,7 @@ export function PendientesBC({
       }
 
       if (result.success) {
-        navigate("/tramites");
+        onClose(true);
       } else {
         toast.error("Error al guardar el trámite");
       }

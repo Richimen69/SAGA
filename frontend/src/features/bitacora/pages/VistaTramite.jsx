@@ -559,7 +559,7 @@ function VistaTramite(user) {
               <ChevronRight />
             </button>
           )}
-          <button
+          {/* <button
             onClick={() =>
               navigate(`/tramitecliente`, {
                 state: { id: id, compromisos: compromisos },
@@ -571,7 +571,7 @@ function VistaTramite(user) {
               <TbEdit />
             </IconContext.Provider>
             Editar
-          </button>
+          </button> */}
           <button
             onClick={() => navigate("/tramites")}
             className="px-6 py-2 bg-[#003f4f] hover:bg-[#002b36] text-white rounded-lg font-medium transition-colors shadow-sm"

@@ -86,3 +86,9 @@ export const getRamosFianza = async () => {
 export const getCompromiso = async (id) => {
   return await fetchApi(`compromisos/por_tramite/?tramite_id=${id}`);
 };
+export const actualizarEstatusTramite = async (id, estatusId) => {
+  return await fetchApi(`tramites-completo/${id}/actualizar_estatus/`, {
+    method: "PATCH",
+    body: JSON.stringify({ estatus: estatusId }),
+  });
+};

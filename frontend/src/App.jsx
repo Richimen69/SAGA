@@ -14,6 +14,11 @@ import CatalogoRPP from "./features/rpp/pages/CatalogoRPP";
 import CompararTramites from "./features/bitacora/pages/CompararTramites";
 import BilseAcademy from "./features/bilse-academy/pages/BilseAcademy";
 import { useAuthStore } from "./store/authStore";
+import SupportDashboard from "./features/helpdesk/pages/SupportDashboard";
+import TicketDetail from "./features/helpdesk/pages/TicketDetail";
+import SupportCategories from "./features/helpdesk/pages/SupportCategories";
+import SupportMetrics from "./features/helpdesk/components/SupportMetrics";
+
 function App() {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
@@ -66,6 +71,15 @@ function App() {
           }
         />
         <Route
+          path="/helpdesk"
+          element={
+            <ProtectedRoute>
+              <Header />
+              <Clientes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/tramites"
           element={
             <ProtectedRoute>
@@ -101,6 +115,10 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/support" element={<SupportDashboard />} />
+        <Route path="/support/ticket/:id" element={<TicketDetail />} />
+        <Route path="/support/metrics" element={<SupportMetrics />} />
+        <Route path="/support/categories" element={<SupportCategories />} />
         <Route
           path="/bilse-academy"
           element={

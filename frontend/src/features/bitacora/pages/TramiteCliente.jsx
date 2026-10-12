@@ -1,14 +1,26 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
 import Select from "react-select";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { Toaster, toast } from "sonner";
+import { format, parseISO } from "date-fns";
+import { Info, Calendar, CheckCircle, FileText, Trash2 } from "lucide-react";
+
+// Componentes propios
 import GestionObservaciones from "../components/GestionObservaciones";
 import FormPrimas from "../components/forms/FormPrimas";
-import { parseDateFromBackend } from "@/shared/utils/dateHelpers";
+import InfoTramite from "../components/InfoTramite";
+import { PendientesBC } from "@/features/bitacora/components/modals/PendientesBC";
+
+// Hooks y utilidades
 import { useUsuario, useCatalogos } from "../hooks";
-import { Info, Calendar, CheckCircle, FileText, Trash2 } from "lucide-react";
+import { parseDateFromBackend } from "@/shared/utils/dateHelpers";
+import { fetchTramitesId } from "../services/tramites.service";
+import {
+  obtenerTareas,
+  obtenerTareasCompletas,
+} from "@/features/bitacora/services/tareas";
+
 import {
   estatusTerminados,
   movimientosPermitidos,
@@ -17,17 +29,8 @@ import {
   estadoTramiteAseguradora,
   agente,
 } from "@/shared/utils/Constans";
-import { format, parseISO } from "date-fns";
-import {
-  obtenerMovimientos,
-  obtenerTareas,
-  obtenerTareasCompletas,
-} from "@/features/bitacora/services/tareas";
-import { fetchTramitesId } from "../services/tramites.service";
-import { PendientesBC } from "@/features/bitacora/components/modals/PendientesBC";
-import InfoTramite from "../components/InfoTramite";
 
-// 1. Mover estilos estáticos fuera del componente para evitar recrearlos en cada render
+// 1. Estilos estáticos fuera del componente
 const selectTheme = (theme) => ({
   ...theme,
   colors: {
@@ -43,19 +46,27 @@ const selectStyles = {
     padding: "2px",
     borderRadius: "0.375rem",
   }),
+  menu: (base) => ({
+    ...base,
+    zIndex: 9999,
+  }),
+  menuPortal: (base) => ({
+    ...base,
+    zIndex: 9999,
+  }),
 };
 
-function TramiteCliente() {
+// 2. RECIBIMOS idTramite y onClose por PROPS en lugar de useLocation/useNavigate
+export default function TramiteCliente({ idTramite, onClose }) {
   const usuario = useUsuario();
   const { catalogos, loading: catalogosLoading } = useCatalogos();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { id, compromisos } = location.state || {};
 
-  // 2. Corregir inicialización de estado (cliente es un objeto, no un array)
+  // Usamos el ID que viene de las props
+  const id = idTramite;
+
   const [cliente, setCliente] = useState(null);
   const [estatusPagoSeleccionado, setEstatusPago] = useState(null);
-  const [showDialog, setShowDialog] = useState(false);
+  const [showDialog, setShowDialog] = useState(false); // Modal de compromisos (PendientesBC)
   const [tareas, setTareas] = useState([]);
   const [seleccionadas, setSeleccionadas] = useState([]);
 
@@ -81,14 +92,14 @@ function TramiteCliente() {
     agenteSeleccionado: null,
   });
 
-  // 3. Carga principal de datos
+  // Carga principal de datos
   useEffect(() => {
     if (catalogosLoading || !id) return;
 
     const { afianzadoras, beneficiarios, estatus, movimientos } = catalogos;
     if (!afianzadoras?.length || !beneficiarios?.length) return;
 
-    let isMounted = true; // Prevenir actualizaciones si el componente se desmonta
+    let isMounted = true;
 
     const fetchData = async () => {
       try {
@@ -162,7 +173,6 @@ function TramiteCliente() {
     };
   }, [catalogos, catalogosLoading, id]);
 
-  // 4. Memoizar valores derivados para evitar recálculos
   const idMovimientoSeleccionado = useMemo(() => {
     if (!cliente || !catalogos?.movimientos) return null;
     const nombreMovimiento = cliente.movimiento_info?.nombre
@@ -171,10 +181,9 @@ function TramiteCliente() {
     const mov = catalogos.movimientos.find(
       (m) => m.label.toLowerCase().trim() === nombreMovimiento,
     );
-    return mov ? mov.value : null; // Asumiendo que 'value' contiene el ID
+    return mov ? mov.value : null;
   }, [cliente, catalogos?.movimientos]);
 
-  // 5. Carga de tareas unificada y dependiente de IDs correctos
   useEffect(() => {
     if (!idMovimientoSeleccionado) return;
     obtenerTareas(idMovimientoSeleccionado)
@@ -187,7 +196,6 @@ function TramiteCliente() {
     obtenerTareasCompletas(id).then(setSeleccionadas).catch(console.error);
   }, [id]);
 
-  // 6. Optimizar handlers con useCallback
   const handleChange = useCallback(
     (field) => (selectedOption) => {
       setFormData((prev) => ({ ...prev, [field]: selectedOption }));
@@ -198,7 +206,6 @@ function TramiteCliente() {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // Calcular valores finales antes de actualizar el estado para evitar desfases
     const estatusPagoFinal =
       formData.fechaPago === null ? estatusPagoSeleccionado?.value : "PAGADA";
     const nuevaPrimaTotal =
@@ -211,33 +218,36 @@ function TramiteCliente() {
       prima_total: nuevaPrimaTotal,
     }));
 
+    // Abrimos el modal secundario de compromisos
     setShowDialog(true);
   };
 
-  if (!id)
+  if (!id) {
     return (
       <div className="p-8 text-center text-red-500 font-bold">
         Error: No se encontró el ID del cliente.
       </div>
     );
+  }
 
   if (!cliente) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center h-64 bg-gray-50 rounded-xl">
         <lottie-player
           autoplay
           loop
           mode="normal"
           src="/loader.json"
-          style={{ width: "200px", height: "200px" }}
+          style={{ width: "150px", height: "150px" }}
         ></lottie-player>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f6f8] p-4 md:p-8 font-sans text-gray-800">
-      <div className="max-w-7xl mx-auto space-y-6">
+    // Se cambia min-h-screen por max-h para evitar desbordar la pantalla del modal principal
+    <div className="max-h-[95vh] overflow-y-auto bg-[#f4f6f8] p-4 md:p-4 font-sans text-gray-800 rounded-b-xl">
+      <div className="max-w-11/12 mx-auto space-y-6">
         {/* ENCABEZADO */}
         <div className="flex justify-between items-start">
           <div className="space-y-2">
@@ -418,8 +428,8 @@ function TramiteCliente() {
                           }))
                         }
                         dateFormat="dd/MM/yyyy"
-                        className="w-full border border-gray-300 rounded-md p-2 focus:border-[#003f4f] focus:ring-1 focus:ring-[#003f4f] outline-none"
-                        wrapperClassName="w-full"
+                        className="w-full border border-gray-300 rounded-md p-2 focus:border-[#003f4f] focus:ring-1 focus:ring-[#003f4f] outline-none z-[9999]"
+                        wrapperClassName="w-full"                      
                       />
                     </div>
                   </div>
@@ -537,8 +547,8 @@ function TramiteCliente() {
               {/* Datos de Fianza / InfoTramite */}
               <div className="bg-white rounded-xl shadow-sm text-white p-6">
                 <div className="flex items-center gap-2 mb-6">
-                  <FileText size={20} className="text-primary" />
-                  <h2 className="text-lg font-bold text-primary">
+                  <FileText size={20} className="text-[#003f4f]" />
+                  <h2 className="text-lg font-bold text-[#003f4f]">
                     Datos de Fianza
                   </h2>
                 </div>
@@ -550,10 +560,10 @@ function TramiteCliente() {
           </div>
 
           {/* ACCIONES (BOTONES) */}
-          <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-200 bg-[#f4f6f8]">
+          <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-200 bg-[#f4f6f8] sticky bottom-0 pb-4 z-10">
             <button
               type="button"
-              onClick={() => navigate("/tramites")}
+              onClick={onClose} // <-- Llamamos a la función onClose proveniente de TableTramites
               className="px-6 py-2.5 border border-gray-300 bg-white rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
             >
               Cancelar
@@ -568,24 +578,32 @@ function TramiteCliente() {
         </form>
 
         {/* OBSERVACIONES GENERALES */}
-        <div className="mt-8">
+        <div className="mt-8 pb-8">
           <GestionObservaciones tramiteId={id} usuario={usuario} />
         </div>
       </div>
 
+      {/* MODAL ANIDADO: PendientesBC para los compromisos */}
       {showDialog && (
         <PendientesBC
-          onClose={() => setShowDialog(false)}
+          onClose={(guardadoExitoso) => {
+            setShowDialog(false); // 1. Cierra el modal de compromisos
+
+            // 2. Si el cierre fue por un guardado exitoso, cerramos el modal principal
+            if (guardadoExitoso === true) {
+              onClose(); // Llama a la función que cierra a TramiteCliente
+            }
+          }}
           id={id}
-          compromiso={compromisos || null}
+          compromiso={null}
           datosCliente={formData}
+          cliente={cliente}
           tareas={seleccionadas.length > 0 ? seleccionadas : ""}
           idMovimiento={tareas.map((t) => t.id)}
         />
       )}
+
       <Toaster position="top-center" richColors />
     </div>
   );
 }
-
-export default TramiteCliente;
