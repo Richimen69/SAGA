@@ -6,9 +6,10 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
 import { Toaster, toast } from "sonner";
 import { FiChevronDown, FiChevronLeft, FiChevronRight } from "react-icons/fi";
-import { MessageSquare, Edit } from "lucide-react";
+import { MessageSquare, Pencil, Plus, Search } from "lucide-react";
 
 // Hooks y Servicios
 import { useUsuario, useCatalogos } from "../../hooks";
@@ -31,6 +32,82 @@ import { statusStyles } from "@/shared/utils/Constans";
 
 const FILTERS_PAGO = ["PAGADA", "SE MANDÓ RECIBO", "NO PAGADA", "PENDIENTE"];
 const PAGE_SIZE = 50;
+
+// Estatus con chip de acceso rápido (los más usados). Edita esta lista a tu gusto;
+// el resto de estatus queda en el selector "Otros estatus".
+const ESTATUS_RAPIDOS = [
+  "EN REVISIÓN DE PREVIAS",
+  "PENDIENTE/OTROS",
+  "TERMINADO",
+];
+
+// --- Helpers de presentación ---
+// "EN REVISIÓN DE PREVIAS" -> "En revisión de previas" (solo visual, el valor no cambia)
+const sentence = (s = "") =>
+  s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : "";
+
+const formatFecha = (fecha) => {
+  if (!fecha) return "";
+  try {
+    return format(parseISO(fecha), "dd MMM yyyy", { locale: es });
+  } catch (e) {
+    return fecha;
+  }
+};
+
+// Etiqueta de pago: borde de color + texto (el color nunca es la única señal)
+const PAGO_STYLES = {
+  PAGADA: "border-emerald-300 text-emerald-800",
+  PENDIENTE: "border-amber-400 text-amber-900",
+  "NO PAGADA": "border-red-300 text-red-800",
+  "SE MANDÓ RECIBO": "border-sky-300 text-sky-800",
+};
+
+function PagoTag({ valor }) {
+  if (!valor) return <span className="text-gray-500">—</span>;
+  const style = PAGO_STYLES[valor];
+  return style ? (
+    <span
+      className={`inline-block rounded-lg border bg-white px-3 py-1 text-[13px] font-semibold ${style}`}
+    >
+      {sentence(valor)}
+    </span>
+  ) : (
+    <span className="text-[13px] font-medium text-gray-600">
+      {sentence(valor)}
+    </span>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  className = "",
+  active = false,
+  children,
+}) {
+  return (
+    <div className={`relative ${className}`}>
+      <select
+        aria-label={label}
+        value={value}
+        onChange={onChange}
+        className={`h-11 w-full cursor-pointer appearance-none rounded-[10px] border bg-white pl-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#003f4f] ${
+          active
+            ? "border-[#003f4f] font-semibold text-[#003f4f]"
+            : "border-gray-300 text-gray-800"
+        }`}
+      >
+        {children}
+      </select>
+      <FiChevronDown
+        aria-hidden="true"
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+      />
+    </div>
+  );
+}
 
 export default function TableTramites() {
   const navigate = useNavigate();
@@ -168,93 +245,164 @@ export default function TableTramites() {
   };
 
   // --- Definición de Columnas para TanStack Table ---
+  // meta.className = ancho/alineación aplicados al <th> y al <td>
   const columns = useMemo(
     () => [
-      { accessorKey: "folio", header: "Folio" },
-      { accessorKey: "beneficiario_nombre", header: "Beneficiario" },
-      { accessorKey: "numero_fianza", header: "Fianza" },
-      { accessorKey: "cliente_nombre", header: "Nombre" },
+      {
+        accessorKey: "folio",
+        header: "Folio",
+        meta: { className: "w-[88px]" },
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap font-bold text-[#003f4f]">
+            {row.original.folio}
+          </span>
+        ),
+      },
+      {
+        id: "beneficiario",
+        header: "Beneficiario / Fiado",
+        meta: { className: "min-w-[260px]" },
+        cell: ({ row }) => (
+          <div className="space-y-0.5">
+            <p className="font-semibold text-gray-900">
+              {row.original.beneficiario_nombre}
+            </p>
+            {row.original.cliente_nombre && (
+              <p className="text-[13px] text-gray-600">
+                Fiado: {row.original.cliente_nombre}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "fianza",
+        header: "Fianza",
+        meta: { className: "min-w-[170px]" },
+        cell: ({ row }) => (
+          <div className="space-y-0.5">
+            <p className="whitespace-nowrap tabular-nums text-gray-900">
+              {row.original.numero_fianza || "—"}
+            </p>
+            {row.original.afianzadora_nombre && (
+              <p className="text-xs text-gray-600">
+                {row.original.afianzadora_nombre}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "movimiento_nombre",
+        header: "Movimiento",
+        meta: { className: "w-[120px]" },
+        cell: ({ row }) => (
+          <span className="font-medium">
+            {sentence(row.original.movimiento_nombre)}
+          </span>
+        ),
+      },
       {
         accessorKey: "fecha",
         header: "Fecha",
-        cell: ({ row }) => {
-          const fecha = row.original.fecha;
-          if (!fecha) return "";
-          try {
-            return format(parseISO(fecha), "dd/MM/yyyy");
-          } catch (e) {
-            return fecha;
-          }
-        },
+        meta: { className: "w-[110px]" },
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap tabular-nums text-gray-700">
+            {formatFecha(row.original.fecha)}
+          </span>
+        ),
       },
-      { accessorKey: "movimiento_nombre", header: "Movimiento" },
-      { accessorKey: "afianzadora_nombre", header: "Afianzadora" },
       {
         accessorKey: "estatus_nombre",
         header: "Estatus",
+        meta: { className: "w-[210px]" },
         cell: ({ row }) => {
           const tramite = row.original;
+          // Sigue siendo un <select> (edición inline), con apariencia de pastilla
           return (
-            <select
-              className={`border border-transparent rounded-md p-1.5 text-xs font-bold cursor-pointer outline-none focus:ring-2 focus:ring-primary ${
-                statusStyles[tramite.estatus_nombre] ||
-                "bg-gray-200 text-gray-700"
-              }`}
-              value={tramite.estatus_nombre}
-              onChange={(e) =>
-                actualizarEstatusRapido(tramite.id, e.target.value)
-              }
-              onClick={(e) => e.stopPropagation()}
-            >
-              <option value={tramite.estatus_nombre}>
-                {tramite.estatus_nombre}
-              </option>
-              {estatus
-                .filter((e) => e.nombre !== tramite.estatus_nombre)
-                .map((e) => (
-                  <option key={e.id} value={e.nombre}>
-                    {e.nombre}
-                  </option>
-                ))}
-            </select>
+            <div className="relative inline-flex items-center">
+              <select
+                aria-label={`Estatus del folio ${tramite.folio}`}
+                className={`cursor-pointer appearance-none rounded-full py-1.5 pl-3 text-[13px] font-semibold outline-none focus:ring-2 focus:ring-[#003f4f] ${
+                  statusStyles[tramite.estatus_nombre] ||
+                  "bg-gray-200 text-gray-700"
+                }`}
+                style={{ paddingRight: "1.75rem" }}
+                value={tramite.estatus_nombre}
+                onChange={(e) =>
+                  actualizarEstatusRapido(tramite.id, e.target.value)
+                }
+                onClick={(e) => e.stopPropagation()}
+              >
+                <option value={tramite.estatus_nombre}>
+                  {sentence(tramite.estatus_nombre)}
+                </option>
+                {estatus
+                  .filter((e) => e.nombre !== tramite.estatus_nombre)
+                  .map((e) => (
+                    <option key={e.id} value={e.nombre}>
+                      {sentence(e.nombre)}
+                    </option>
+                  ))}
+              </select>
+              <FiChevronDown
+                aria-hidden="true"
+                className="pointer-events-none absolute right-2 h-4 w-4 opacity-70"
+              />
+            </div>
           );
         },
       },
-      { accessorKey: "tipo_proceso", header: "Responsable" },
-      { accessorKey: "estatus_pago", header: "Pago" },
       {
-        id: "observaciones",
-        header: "Obs.",
+        accessorKey: "tipo_proceso",
+        header: "Responsable",
+        meta: { className: "w-[110px]" },
         cell: ({ row }) => (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setModalObservaciones({
-                isOpen: true,
-                tramiteId: row.original.id,
-              });
-            }}
-            className="flex items-center justify-center p-2 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-200 transition-colors"
-            title="Ver/Agregar Observaciones"
-          >
-            <MessageSquare size={16} />
-          </button>
+          <span className="whitespace-nowrap text-[13px] font-semibold text-gray-700">
+            {row.original.tipo_proceso || "—"}
+          </span>
         ),
+      },
+      {
+        accessorKey: "estatus_pago",
+        header: "Pago",
+        meta: { className: "w-[130px]" },
+        cell: ({ row }) => <PagoTag valor={row.original.estatus_pago} />,
       },
       {
         id: "acciones",
         header: "Acciones",
+        meta: { className: "w-[112px] text-right" },
         cell: ({ row }) => (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setModalEdicion({ isOpen: true, tramiteId: row.original.id });
-            }}
-            className="flex items-center gap-2 px-3 py-1.5 bg-[#003f4f] text-white rounded-md hover:bg-[#002b36] transition-colors text-xs font-medium"
-            title="Edición Completa"
-          >
-            <Edit size={14} /> Editar
-          </button>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setModalObservaciones({
+                  isOpen: true,
+                  tramiteId: row.original.id,
+                });
+              }}
+              aria-label={`Observaciones del folio ${row.original.folio}`}
+              title="Ver/Agregar Observaciones"
+              className="flex h-11 w-11 items-center justify-center rounded-[10px] border border-gray-300 bg-white text-blue-700 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#003f4f]"
+            >
+              <MessageSquare size={20} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setModalEdicion({ isOpen: true, tramiteId: row.original.id });
+              }}
+              aria-label={`Editar folio ${row.original.folio}`}
+              title="Edición completa"
+              className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-[#003f4f] text-white transition-colors hover:bg-[#002b36] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#003f4f]"
+            >
+              <Pencil size={20} aria-hidden="true" />
+            </button>
+          </div>
         ),
       },
     ],
@@ -288,30 +436,67 @@ export default function TableTramites() {
     });
   };
 
+  // Chips rápidos vs. resto de estatus (se comparan en mayúsculas)
+  const esRapido = (nombre = "") =>
+    ESTATUS_RAPIDOS.includes(nombre.toUpperCase());
+  const estatusRapidos = estatus.filter((e) => esRapido(e.nombre));
+  const estatusOtros = estatus.filter((e) => !esRapido(e.nombre));
+  const estatusOtroActivo = estatusOtros.some(
+    (e) => e.nombre === filters.estatus,
+  );
+
   const hayFiltrosActivos = Object.values(filters).some((v) => v !== "");
   const goToPage = (page) => {
     if (page >= 1 && page <= pagination.totalPages) obtenerTramites(page);
   };
 
   return (
-    <div className="w-full p-5">
-      <div className="flex flex-col space-y-6">
-        {/* ENCABEZADO */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-semibold tracking-tight text-gray-900">
+    <div className="mx-auto w-full max-w-[1600px] space-y-5">
+      {/* ENCABEZADO */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
             Trámites
           </h1>
-          <span className="text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-600">
             {pagination.count.toLocaleString()} trámites encontrados
-          </span>
+          </p>
         </div>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="h-11 whitespace-nowrap rounded-[10px] border border-gray-300 bg-white px-[18px] text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#003f4f]"
+            onClick={() => navigate("/comparar-tramites")}
+          >
+            Comparar trámites
+          </button>
+          <button
+            type="button"
+            className="flex h-11 items-center gap-2 whitespace-nowrap rounded-[10px] bg-[#003f4f] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#002b36] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#003f4f]"
+            onClick={() => setIsFormVisible(true)}
+          >
+            <Plus size={18} aria-hidden="true" />
+            Nuevo trámite
+          </button>
+        </div>
+      </div>
 
-        {/* FILTROS */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4">
-          <div className="md:col-span-1">
+      {/* FILTROS */}
+      <section
+        aria-label="Filtros"
+        className="space-y-4 rounded-2xl border border-gray-200 bg-white px-5 py-4"
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[260px] flex-1">
+            <Search
+              size={18}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"
+            />
             <input
-              type="text"
-              placeholder="# fianza, nombre fiado o beneficiario"
+              type="search"
+              aria-label="Buscar por folio, fianza, fiado o beneficiario"
+              placeholder="Buscar por folio, fianza, fiado o beneficiario"
               defaultValue={filters.search || filters.numero_fianza}
               onChange={(e) => {
                 const value = e.target.value;
@@ -325,162 +510,149 @@ export default function TableTramites() {
                 }, 500);
                 setSearchTimeout(timeout);
               }}
-              className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
+              className="h-11 w-full rounded-[10px] border border-gray-300 bg-white pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#003f4f]"
             />
           </div>
 
-          <div className="relative">
-            <select
-              value={filters.movimiento}
-              onChange={(e) => handleSelectChange("movimiento", e.target.value)}
-              className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary appearance-none cursor-pointer"
-            >
-              <option value="">Todos los movimientos</option>
-              {movimientos.map((m) => (
-                <option key={m.id} value={m.nombre}>
-                  {m.nombre}
-                </option>
-              ))}
-            </select>
-            <FiChevronDown className="absolute top-1/2 right-4 transform -translate-y-1/2 pointer-events-none text-gray-500" />
-          </div>
-
-          <div className="flex items-center gap-4 relative col-span-1">
-            <div className="relative w-full">
-              <select
-                value={filters.estatus_pago}
-                onChange={(e) =>
-                  handleSelectChange("estatus_pago", e.target.value)
-                }
-                className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary appearance-none cursor-pointer pr-10 w-full"
-              >
-                <option value="">Todos los pagos</option>
-                {FILTERS_PAGO.map((f) => (
-                  <option key={f} value={f}>
-                    {f}
-                  </option>
-                ))}
-              </select>
-              <FiChevronDown className="absolute top-1/2 right-4 transform -translate-y-1/2 pointer-events-none text-gray-500" />
-            </div>
-
-            {hayFiltrosActivos && (
-              <button
-                onClick={limpiarFiltros}
-                className="text-sm text-gray-500 hover:text-gray-700 underline whitespace-nowrap"
-              >
-                Limpiar filtros
-              </button>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative w-full sm:w-auto flex-1">
-              <select
-                value={filters.estatus}
-                onChange={(e) => handleSelectChange("estatus", e.target.value)}
-                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary appearance-none cursor-pointer"
-              >
-                <option value="">Todos los estatus</option>
-                {estatus.map((e) => (
-                  <option key={e.id} value={e.nombre}>
-                    {e.nombre}
-                  </option>
-                ))}
-              </select>
-              <FiChevronDown className="absolute top-1/2 right-4 transform -translate-y-1/2 pointer-events-none text-gray-500" />
-            </div>
-
-            <button
-              className="h-10 px-4 py-2 rounded-md bg-[#003f4f] text-white text-sm font-medium hover:bg-[#002b36] focus:outline-none focus:ring-2 focus:ring-green-500 whitespace-nowrap"
-              onClick={() => setIsFormVisible(true)}
-            >
-              Nuevo trámite
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <button
-            className="h-10 px-4 py-2 rounded-md bg-[#003f4f] text-white text-sm font-medium hover:bg-[#002b36] focus:outline-none whitespace-nowrap"
-            onClick={() => navigate("/comparar-tramites")}
+          <SelectField
+            label="Movimiento"
+            value={filters.movimiento}
+            onChange={(e) => handleSelectChange("movimiento", e.target.value)}
+            className="w-full sm:w-[220px]"
           >
-            Comparar trámite
-          </button>
+            <option value="">Todos los movimientos</option>
+            {movimientos.map((m) => (
+              <option key={m.id} value={m.nombre}>
+                {m.nombre}
+              </option>
+            ))}
+          </SelectField>
 
-          <div className="flex items-center space-x-3">
-            <label className="group flex items-center cursor-pointer gap-3">
-              <div
-                className={`w-8 h-8 flex justify-center items-center rounded-md border-2 shadow-md transition-all duration-300 ${
-                  filters.agente_nombre === "RBG-PP"
-                    ? "bg-[#003f4f] border-[#003f4f]"
-                    : "bg-gray-100 border-gray-400"
-                }`}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    agente_nombre:
-                      prev.agente_nombre === "RBG-PP" ? "" : "RBG-PP",
-                  }))
-                }
-              >
-                {filters.agente_nombre === "RBG-PP" && (
-                  <svg
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                    className="w-5 h-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      clipRule="evenodd"
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 10-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z"
-                    />
-                  </svg>
-                )}
-              </div>
-              <span className="text-gray-700 font-medium">PP</span>
-            </label>
-          </div>
+          <SelectField
+            label="Pago"
+            value={filters.estatus_pago}
+            onChange={(e) => handleSelectChange("estatus_pago", e.target.value)}
+            className="w-full sm:w-[190px]"
+          >
+            <option value="">Todos los pagos</option>
+            {FILTERS_PAGO.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </SelectField>
 
-          <div className="relative sm:w-auto flex-1">
-            <select
-              value={filters.afianzadora_id}
-              onChange={(e) => {
-                localStorage.setItem("afianzadoraFiltro", e.target.value);
+          <SelectField
+            label="Afianzadora"
+            value={filters.afianzadora_id}
+            onChange={(e) =>
+              handleSelectChange("afianzadora_id", e.target.value)
+            }
+            className="w-full sm:w-[230px]"
+          >
+            <option value="">Todas las afianzadoras</option>
+            {afianzadoras.map((a) => (
+              <option key={a.value} value={a.value}>
+                {a.label}
+              </option>
+            ))}
+          </SelectField>
+
+          {/* Checkbox real (antes era un div con onClick): accesible por teclado */}
+          <label className="flex h-11 cursor-pointer items-center gap-2 font-semibold text-gray-800">
+            <input
+              type="checkbox"
+              className="h-5 w-5 cursor-pointer rounded accent-[#003f4f]"
+              checked={filters.agente_nombre === "RBG-PP"}
+              onChange={() =>
                 setFilters((prev) => ({
                   ...prev,
-                  afianzadora_id: e.target.value,
-                }));
-              }}
-              className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary appearance-none cursor-pointer"
+                  agente_nombre: prev.agente_nombre === "RBG-PP" ? "" : "RBG-PP",
+                }))
+              }
+            />
+            PP
+          </label>
+
+          {hayFiltrosActivos && (
+            <button
+              type="button"
+              onClick={limpiarFiltros}
+              className="h-11 whitespace-nowrap px-2 text-sm font-medium text-gray-700 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003f4f] rounded-md"
             >
-              <option value="">Afianzadora</option>
-              {afianzadoras.map((a) => (
-                <option key={a.value} value={a.value}>
-                  {a.label}
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+
+        {/* Estatus: chips solo para los más usados + selector con el resto */}
+        <div
+          role="group"
+          aria-label="Filtrar por estatus"
+          className="flex flex-wrap items-center gap-2"
+        >
+          <span className="text-[13px] font-semibold text-gray-600">
+            Estatus
+          </span>
+          {[{ id: "todos", nombre: "" }, ...estatusRapidos].map((e) => {
+            const on = filters.estatus === e.nombre;
+            return (
+              <button
+                key={e.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => handleSelectChange("estatus", e.nombre)}
+                className={`h-9 whitespace-nowrap rounded-full border px-4 text-[13px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[#003f4f] focus:ring-offset-1 ${
+                  on
+                    ? "border-[#003f4f] bg-[#003f4f] text-white"
+                    : "border-gray-300 bg-white text-gray-900 hover:bg-gray-100"
+                }`}
+              >
+                {e.nombre ? sentence(e.nombre) : "Todos"}
+              </button>
+            );
+          })}
+
+          {estatusOtros.length > 0 && (
+            <SelectField
+              label="Otros estatus"
+              value={estatusOtroActivo ? filters.estatus : ""}
+              onChange={(e) => handleSelectChange("estatus", e.target.value)}
+              active={estatusOtroActivo}
+              className="w-[240px]"
+            >
+              <option value="" disabled={estatusOtroActivo}>
+                Otros estatus ({estatusOtros.length})
+              </option>
+              {estatusOtros.map((e) => (
+                <option key={e.id} value={e.nombre}>
+                  {sentence(e.nombre)}
                 </option>
               ))}
-            </select>
-            <FiChevronDown className="absolute top-1/2 right-4 transform -translate-y-1/2 pointer-events-none text-gray-500" />
-          </div>
+            </SelectField>
+          )}
         </div>
-      </div>
+      </section>
 
       {/* RENDERIZADO DE LA TANSTACK TABLE */}
-      <div className="rounded-lg border border-gray-200 overflow-hidden mt-5">
+      <section
+        aria-label="Lista de trámites"
+        className="overflow-hidden rounded-2xl border border-gray-200 bg-white"
+      >
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[1180px] text-sm">
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr
                   key={headerGroup.id}
-                  className="bg-gray-50 border-b border-gray-200"
+                  className="border-b border-gray-200 bg-gray-50"
                 >
                   {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
-                      className="px-4 py-3 text-left font-medium text-gray-600 whitespace-nowrap"
+                      className={`whitespace-nowrap px-4 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-gray-600 ${
+                        header.column.columnDef.meta?.className || ""
+                      }`}
                     >
                       {flexRender(
                         header.column.columnDef.header,
@@ -496,10 +668,10 @@ export default function TableTramites() {
                 <tr>
                   <td
                     colSpan={columns.length}
-                    className="px-4 py-8 text-center text-gray-500"
+                    className="px-4 py-10 text-center text-gray-600"
                   >
                     <div className="flex items-center justify-center gap-2">
-                      <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
                       Cargando trámites...
                     </div>
                   </td>
@@ -508,7 +680,7 @@ export default function TableTramites() {
                 <tr>
                   <td
                     colSpan={columns.length}
-                    className="px-4 py-8 text-center text-gray-500"
+                    className="px-4 py-10 text-center text-gray-600"
                   >
                     No se encontraron trámites
                   </td>
@@ -517,7 +689,7 @@ export default function TableTramites() {
                 table.getRowModel().rows.map((row) => (
                   <tr
                     key={row.id}
-                    className="border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
+                    className="cursor-pointer border-b border-gray-100 transition-colors last:border-0 hover:bg-gray-50"
                     onClick={() => {
                       navigate(`/vistaprevia`, {
                         state: {
@@ -528,7 +700,12 @@ export default function TableTramites() {
                     }}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-4 py-3 text-gray-800">
+                      <td
+                        key={cell.id}
+                        className={`px-4 py-3.5 align-middle text-gray-800 ${
+                          cell.column.columnDef.meta?.className || ""
+                        }`}
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
@@ -544,8 +721,8 @@ export default function TableTramites() {
 
         {/* PAGINACIÓN */}
         {pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-200">
-            <div className="text-sm text-gray-500">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3">
+            <div className="text-sm text-gray-600">
               Página {pagination.currentPage} de {pagination.totalPages} {" · "}{" "}
               {pagination.count.toLocaleString()} registros
             </div>
@@ -553,14 +730,15 @@ export default function TableTramites() {
               <button
                 onClick={() => goToPage(1)}
                 disabled={pagination.currentPage === 1 || loading}
-                className="px-3 py-1 text-sm border rounded-md hover:bg-gray-100 disabled:opacity-50"
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-100 disabled:opacity-50"
               >
                 Primera
               </button>
               <button
                 onClick={() => goToPage(pagination.currentPage - 1)}
                 disabled={!pagination.previous || loading}
-                className="p-2 border rounded-md hover:bg-gray-100 disabled:opacity-50"
+                aria-label="Página anterior"
+                className="rounded-md border border-gray-300 bg-white p-2 hover:bg-gray-100 disabled:opacity-50"
               >
                 <FiChevronLeft />
               </button>
@@ -581,7 +759,14 @@ export default function TableTramites() {
                       key={`page-${pageNum}`}
                       onClick={() => goToPage(pageNum)}
                       disabled={loading}
-                      className={`px-3 py-1 text-sm border rounded-md ${pageNum === pagination.currentPage ? "bg-primary text-white border-primary" : "hover:bg-gray-100"} disabled:cursor-not-allowed`}
+                      aria-current={
+                        pageNum === pagination.currentPage ? "page" : undefined
+                      }
+                      className={`rounded-md border px-3 py-1.5 text-sm ${
+                        pageNum === pagination.currentPage
+                          ? "border-[#003f4f] bg-[#003f4f] text-white"
+                          : "border-gray-300 bg-white hover:bg-gray-100"
+                      } disabled:cursor-not-allowed`}
                     >
                       {pageNum}
                     </button>
@@ -592,7 +777,8 @@ export default function TableTramites() {
               <button
                 onClick={() => goToPage(pagination.currentPage + 1)}
                 disabled={!pagination.next || loading}
-                className="p-2 border rounded-md hover:bg-gray-100 disabled:opacity-50"
+                aria-label="Página siguiente"
+                className="rounded-md border border-gray-300 bg-white p-2 hover:bg-gray-100 disabled:opacity-50"
               >
                 <FiChevronRight />
               </button>
@@ -601,14 +787,14 @@ export default function TableTramites() {
                 disabled={
                   pagination.currentPage === pagination.totalPages || loading
                 }
-                className="px-3 py-1 text-sm border rounded-md hover:bg-gray-100 disabled:opacity-50"
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-100 disabled:opacity-50"
               >
                 Última
               </button>
             </div>
           </div>
         )}
-      </div>
+      </section>
 
       <FormularioTramite
         isVisible={isFormVisible}

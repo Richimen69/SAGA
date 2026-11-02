@@ -1,6 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import Login from "./views/Login";
-import Header from "./components/layout/Header";
+import AppLayout from "./components/layout/AppLayout";
 import Dashboard from "./features/dashboard/pages/Dashboard";
 import ProtectedRoute from "./components/utils/ProtectedRoute";
 import NotFound from "./views/NotFound";
@@ -23,133 +23,39 @@ import DashboardFianzas from "./features/dashboard/pages/DashboardFianzas";
 
 function App() {
   const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
   return (
     <div className="bg-background min-h-screen">
       <Routes>
+        {/* Rutas protegidas: comparten sidebar + barra superior vía <AppLayout /> */}
         <Route
-          path="/"
           element={
             <ProtectedRoute>
-              <Header />
-              <Dashboard />
+              <AppLayout />
             </ProtectedRoute>
           }
-        />
-        <Route
-          path="/rpp"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <Rpp />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/config"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <Configuraciones />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/catalogo"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <CatalogoRPP />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/clientes"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <Clientes />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/helpdesk"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <Clientes />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tramites"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <Tramites />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/vistaprevia"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <VistaTramite user={user} />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tramitecliente"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <TramiteCliente />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/comparar-tramites"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <CompararTramites />
-            </ProtectedRoute>
-          }
-        />
+        >
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/dashboard" element={<DashboardFianzas />} />
+          <Route path="/rpp" element={<Rpp />} />
+          <Route path="/config" element={<Configuraciones />} />
+          <Route path="/catalogo" element={<CatalogoRPP />} />
+          <Route path="/catalogos" element={<CatalogosPage />} />
+          <Route path="/clientes" element={<Clientes />} />
+          <Route path="/helpdesk" element={<Clientes />} />
+          <Route path="/tramites" element={<Tramites />} />
+          <Route path="/vistaprevia" element={<VistaTramite user={user} />} />
+          <Route path="/tramitecliente" element={<TramiteCliente />} />
+          <Route path="/comparar-tramites" element={<CompararTramites />} />
+          <Route path="/bilse-academy" element={<BilseAcademy />} />
+        </Route>
+
+        {/* Rutas sin layout */}
         <Route path="/support" element={<SupportDashboard />} />
         <Route path="/support/ticket/:id" element={<TicketDetail />} />
         <Route path="/support/metrics" element={<SupportMetrics />} />
         <Route path="/support/categories" element={<SupportCategories />} />
-        <Route
-          path="/bilse-academy"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <BilseAcademy />
-            </ProtectedRoute>
-          }
-        />
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<NotFound />} />
-        <Route
-          path="/catalogos"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <CatalogosPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <DashboardFianzas />
-            </ProtectedRoute>
-          }
-        />
       </Routes>
     </div>
   );

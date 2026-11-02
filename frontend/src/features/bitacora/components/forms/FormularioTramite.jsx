@@ -1,49 +1,104 @@
 import React, { useState, useEffect } from "react";
 import Select from "react-select";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import { agente } from "@/shared/utils/Constans";
-import { X } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useUsuario, useCatalogos } from "../../hooks";
 import { crearTramite } from "../../services/tramites.service";
-import {
-  fetchClientes,
-} from "../../services/datosTramites";
-import { useNavigate } from "react-router-dom";
+import { fetchClientes } from "../../services/datosTramites";
+
+// Movimientos cuyo pago es "NO APLICA" (ids del catálogo)
+const MOVIMIENTOS_SIN_PAGO = [1, 2, 4, 6, 8, 9, 11, 14, 16, 17];
+
+// Fecha de hoy en formato yyyy-mm-dd usando la hora local (no UTC)
+const hoy = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+};
+
+const initialForm = () => ({
+  movimiento: null,
+  agente: null,
+  fecha: hoy(),
+  cliente: null,
+  afianzadora: null,
+  beneficiario: null,
+});
+
+// Estilos de react-select alineados con el resto de campos (44px, borde 10px, foco verde azulado)
+const selectStyles = (hasError) => ({
+  control: (base, state) => ({
+    ...base,
+    minHeight: 44,
+    borderRadius: 10,
+    borderColor: hasError ? "#b91c1c" : state.isFocused ? "#003f4f" : "#d1d5db",
+    boxShadow: state.isFocused ? "0 0 0 2px rgba(0,63,79,0.35)" : "none",
+    "&:hover": { borderColor: hasError ? "#b91c1c" : "#003f4f" },
+  }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isSelected
+      ? "#003f4f"
+      : state.isFocused
+        ? "#e6f0f2"
+        : "#ffffff",
+    color: state.isSelected ? "#ffffff" : "#14323b",
+  }),
+  placeholder: (base) => ({ ...base, color: "#6b7280" }),
+});
+
+function Field({ id, label, error, children }) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="block text-sm font-semibold text-gray-800">
+        {label}
+      </label>
+      {children}
+      {error && (
+        <p role="alert" className="text-[13px] font-medium text-red-700">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 const FormularioTramite = ({ isVisible, onClose, onSuccess }) => {
   const usuario = useUsuario();
   const { catalogos, loading: catalogosLoading } = useCatalogos();
-  const navigate = useNavigate();
   const [clientes, setClientes] = useState([]);
   const [afianzadoras, setAfianzadoras] = useState([]);
   const [beneficiarios, setBeneficiarios] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
-  const [btnSave, setBtnSave] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    movimiento: null,
-    agente: null,
-    fecha: "",
-    cliente: null,
-    afianzadora: null,
-    beneficiario: null,
-  });
+  const [errors, setErrors] = useState({});
+  const [formData, setFormData] = useState(initialForm);
+
   const handleChange = (name, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    // Al corregir un campo, se quita su error
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
+  // Formulario limpio cada vez que se abre
+  useEffect(() => {
+    if (isVisible) {
+      setFormData(initialForm());
+      setErrors({});
+      setLoading(false);
+    }
+  }, [isVisible]);
 
   useEffect(() => {
     if (catalogosLoading || !usuario) return;
-  
-    const { movimientos, afianzadoras, beneficiarios } = catalogos;
-  
-    setMovimientos(movimientos);
-    setAfianzadoras(afianzadoras);
-    setBeneficiarios(beneficiarios);
-  
+
+    const { movimientos, afianzadoras, beneficiarios } = catalogos || {};
+    setMovimientos(movimientos || []);
+    setAfianzadoras(afianzadoras || []);
+    setBeneficiarios(beneficiarios || []);
+
     const fetchData = async () => {
       try {
         const clientesData = await fetchClientes();
@@ -51,42 +106,40 @@ const FormularioTramite = ({ isVisible, onClose, onSuccess }) => {
           clientesData.map((cliente) => ({
             value: cliente.id_cli,
             label: cliente.nombre_cli,
-          }))
+          })),
         );
       } catch (error) {
         console.error("Error al obtener clientes:", error);
       }
     };
-  
+
     fetchData();
   }, [catalogos, catalogosLoading, usuario]);
-  
-  
+
+  const validate = () => {
+    const e = {};
+    if (!formData.fecha) e.fecha = "Selecciona la fecha.";
+    if (!formData.movimiento) e.movimiento = "Selecciona un movimiento.";
+    if (!formData.cliente) e.cliente = "Selecciona un cliente.";
+    if (!formData.beneficiario) e.beneficiario = "Selecciona un beneficiario.";
+    if (!formData.afianzadora) e.afianzadora = "Selecciona una afianzadora.";
+    if (!formData.agente) e.agente = "Selecciona un agente.";
+    return e;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setBtnSave(true);
+    if (loading) return;
+
+    const found = validate();
+    setErrors(found);
+    if (Object.keys(found).length > 0) return;
+
     setLoading(true);
 
-    // Verifica campos requeridos
-    if (
-      !formData.cliente ||
-      !formData.afianzadora ||
-      !formData.beneficiario ||
-      !formData.agente ||
-      !formData.movimiento
-    ) {
-      toast.error("Rellene los campos");
-      setBtnSave(false);
-      setLoading(false);
-      return;
-    }
-    let pago = "PENDIENTE";
-    const movimientosEspeciales = [1,2,4,6,8,9,11,14,16,17];
-
-    if (movimientosEspeciales.includes(formData.movimiento.value)) {
-      pago = "NO APLICA";
-    }
+    const pago = MOVIMIENTOS_SIN_PAGO.includes(formData.movimiento.value)
+      ? "NO APLICA"
+      : "PENDIENTE";
 
     const data = {
       creado_por: usuario.username,
@@ -105,30 +158,21 @@ const FormularioTramite = ({ isVisible, onClose, onSuccess }) => {
       programa_proveedores: false,
       estatus_pago: pago,
     };
+
     try {
       const result = await crearTramite(data);
       if (result.success) {
         toast.success(result.message || "Trámite guardado exitosamente.");
-        setFormData({
-          movimiento: null,
-          agente: null,
-          fecha: "",
-          cliente: null,
-          afianzadora: null,
-          beneficiario: null,
-        });
+        onClose();
+        onSuccess();
       } else {
-        // Mostrar el mensaje principal del error
+        // El modal se queda abierto para que no se pierdan los datos capturados
         toast.error(result.message || "Error al guardar el trámite.");
-
-        // Mostrar cada error específico de cada campo
         if (result.errors && Object.keys(result.errors).length > 0) {
           Object.entries(result.errors).forEach(([campo, mensajes]) => {
-            // mensajes puede ser un array o un string
             const textoError = Array.isArray(mensajes)
               ? mensajes.join(", ")
               : mensajes;
-
             toast.error(`${campo}: ${textoError}`);
           });
         }
@@ -137,135 +181,156 @@ const FormularioTramite = ({ isVisible, onClose, onSuccess }) => {
       toast.error("Hubo un problema inesperado al guardar el trámite.");
     } finally {
       setLoading(false);
-      setBtnSave(false);
-      onClose();
-      onSuccess();
     }
   };
 
-  if (!isVisible) return null;
-
-  if (loading) {
-    return (
-      <div className="fixed top-0 left-0 w-full h-full flex justify-center items-center z-50  backdrop-blur-xs">
-        <lottie-player
-          autoplay
-          loop
-          mode="normal"
-          src="/loader.json"
-          style={{ width: "200px", height: "200px" }}
-        ></lottie-player>
-      </div>
-    );
-  }
-
   return (
-    <div
-      className="fixed top-0 left-0 w-full h-full bg-black/50 flex justify-center items-center z-50"
-      onClick={onClose}
+    <Dialog
+      open={isVisible}
+      onOpenChange={(open) => {
+        if (!open && !loading) onClose();
+      }}
     >
-      <div
-        className="bg-white rounded-2xl shadow-lg md:w-2/6 w-3/4"
-        onClick={(e) => e.stopPropagation()}
+      <DialogContent
+        aria-describedby={undefined}
+        className="w-full max-w-xl gap-0 overflow-visible p-0"
       >
-        <div className="flex bg-primary p-7 rounded-t-2xl justify-between items-center">
-          <h2 className="text-lg font-bold text-white">Nuevo Trámite</h2>
-          <button
-            className="hover:bg-white/20 p-2 rounded-xl flex justify-center items-center"
-            onClick={onClose}
-          >
-            <X color="#ffff" size={30} strokeWidth={2} />
-          </button>
+        <div className="rounded-t-lg border-b border-gray-200 px-6 py-5">
+          <DialogTitle className="text-xl font-bold text-gray-900">
+            Nuevo trámite
+          </DialogTitle>
+          <p className="mt-1 text-sm text-gray-600">
+            Todos los campos son obligatorios.
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="flex  flex-col gap-2 ">
-            <p className="block text-gray-700">Fecha</p>
-            <input
-              type="date"
-              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-hidden focus:ring-1 focus:ring-teal-500"
-              value={formData.fecha}
-              onChange={(e) => handleChange("fecha", e.target.value)}
-            />
+        <form onSubmit={handleSubmit} noValidate className="space-y-5 p-6">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Field id="tramite-fecha" label="Fecha" error={errors.fecha}>
+              <input
+                id="tramite-fecha"
+                type="date"
+                value={formData.fecha}
+                disabled={loading}
+                aria-invalid={!!errors.fecha}
+                onChange={(e) => handleChange("fecha", e.target.value)}
+                className={`h-11 w-full rounded-[10px] border bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#003f4f] disabled:bg-gray-100 ${
+                  errors.fecha ? "border-red-700" : "border-gray-300"
+                }`}
+              />
+            </Field>
+
+            <Field
+              id="tramite-movimiento"
+              label="Movimiento"
+              error={errors.movimiento}
+            >
+              <Select
+                inputId="tramite-movimiento"
+                options={movimientos}
+                value={formData.movimiento}
+                onChange={(value) => handleChange("movimiento", value)}
+                placeholder="Buscar movimiento..."
+                noOptionsMessage={() => "Sin resultados"}
+                isDisabled={loading}
+                aria-invalid={!!errors.movimiento}
+                styles={selectStyles(!!errors.movimiento)}
+              />
+            </Field>
           </div>
-          {/* Selector de Cliente */}
-          <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Cliente:</label>
+
+          <Field id="tramite-cliente" label="Cliente / Fiado" error={errors.cliente}>
             <Select
+              inputId="tramite-cliente"
               options={clientes}
               value={formData.cliente}
               onChange={(value) => handleChange("cliente", value)}
               placeholder="Seleccionar cliente..."
+              noOptionsMessage={() => "Sin resultados"}
               isClearable
+              isDisabled={loading}
+              aria-invalid={!!errors.cliente}
+              styles={selectStyles(!!errors.cliente)}
             />
-          </div>
+          </Field>
 
-          {/* Selector de Afianzadora */}
-          <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Afianzadora:</label>
+          <Field
+            id="tramite-beneficiario"
+            label="Beneficiario"
+            error={errors.beneficiario}
+          >
             <Select
-              options={afianzadoras}
-              value={formData.afianzadora}
-              onChange={(value) => handleChange("afianzadora", value)}
-              placeholder="Seleccionar afianzadora..."
-              isClearable
-            />
-          </div>
-
-          {/* Selector de Beneficiario */}
-          <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Beneficiario:</label>
-            <Select
+              inputId="tramite-beneficiario"
               options={beneficiarios}
               value={formData.beneficiario}
               onChange={(value) => handleChange("beneficiario", value)}
               placeholder="Seleccionar beneficiario..."
+              noOptionsMessage={() => "Sin resultados"}
               isClearable
+              isDisabled={loading}
+              aria-invalid={!!errors.beneficiario}
+              styles={selectStyles(!!errors.beneficiario)}
             />
-          </div>
-          <div className="mb-4">
-            <label className="block text-gray-700 mb-2">
-              Selecciona un agente:
-            </label>
-            <Select
-              options={agente}
-              value={formData.agente}
-              onChange={(value) => handleChange("agente", value)}
-              placeholder="Buscar agente..."
-            />
-          </div>
-          <div className="mb-4">
-            <label className="block text-gray-700 mb-2">
-              Selecciona un movimiento:
-            </label>
-            <Select
-              options={movimientos}
-              value={formData.movimiento}
-              onChange={(value) => handleChange("movimiento", value)}
-              placeholder="Buscar movimiento..."
-            />
+          </Field>
+
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Field
+              id="tramite-afianzadora"
+              label="Afianzadora"
+              error={errors.afianzadora}
+            >
+              <Select
+                inputId="tramite-afianzadora"
+                options={afianzadoras}
+                value={formData.afianzadora}
+                onChange={(value) => handleChange("afianzadora", value)}
+                placeholder="Seleccionar afianzadora..."
+                noOptionsMessage={() => "Sin resultados"}
+                isClearable
+                isDisabled={loading}
+                aria-invalid={!!errors.afianzadora}
+                styles={selectStyles(!!errors.afianzadora)}
+              />
+            </Field>
+
+            <Field id="tramite-agente" label="Agente" error={errors.agente}>
+              <Select
+                inputId="tramite-agente"
+                options={agente}
+                value={formData.agente}
+                onChange={(value) => handleChange("agente", value)}
+                placeholder="Buscar agente..."
+                noOptionsMessage={() => "Sin resultados"}
+                isDisabled={loading}
+                aria-invalid={!!errors.agente}
+                styles={selectStyles(!!errors.agente)}
+              />
+            </Field>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-3 border-t border-gray-200 pt-5">
             <button
               type="button"
-              className="bg-gray-300 px-4 py-2 rounded mr-2"
               onClick={onClose}
+              disabled={loading}
+              className="h-11 rounded-[10px] border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#003f4f] disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              disabled={btnSave}
-              className="bg-blue-500 text-white px-4 py-2 rounded"
+              disabled={loading}
+              className="flex h-11 min-w-[120px] items-center justify-center gap-2 rounded-[10px] bg-[#003f4f] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#002b36] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#003f4f] disabled:opacity-70"
             >
-              Guardar
+              {loading && (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
+              {loading ? "Guardando..." : "Guardar"}
             </button>
           </div>
         </form>
-      </div>
-      <Toaster position="top-center" richColors />
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
