@@ -1,58 +1,42 @@
-import React, { useState, useEffect } from "react";
-import TableRpp from "@/features/rpp/components/tables/TableRpp";
-import { IoMdPersonAdd } from "react-icons/io";
-import { IconContext } from "react-icons";
-import { FormularioUsers } from "@/features/rpp/components/forms/FormularioUsers";
-import { MdAttachMoney } from "react-icons/md";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { CircleDollarSign, UserPlus } from "lucide-react";
+import TableRpp from "@/features/rpp/components/tables/TableRpp";
+import { FormularioUsers } from "@/features/rpp/components/forms/FormularioUsers";
+
 function Rpp() {
-  const id = localStorage.getItem("id");
   const [showDialog, setShowDialog] = useState(false);
+
   return (
-    <div className="p-5">
-      <div className="flex flex-col items-center justify-center shadow-lg rounded-3xl overflow-hidden w-full bg-white">
-        <div className="p-5 mr-5 flex justify-between w-full">
-          <h1 className="text-3xl font-semibold tracking-tight text-gray-900 p-1">
-            Trámites
+    <div className="p-4 md:p-8">
+      <div className="mx-auto w-full max-w-[1600px] space-y-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            Trámites RPP
           </h1>
-          <div className="flex gap-5">
+          <div className="flex flex-wrap gap-3">
+            {/* Antes este link también abría el formulario de usuarios al navegar; ya no */}
             <Link
               to="/catalogo"
-              className=" text-primary  transition ease-in-out hover:-translate-y-1 hover:scale-110 duration-300"
-              onClick={() => {
-                setShowDialog(true);
-              }}
+              className="flex h-11 items-center gap-2 whitespace-nowrap rounded-[10px] border border-gray-300 bg-white px-[18px] text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#003f4f]"
             >
-              <IconContext.Provider
-                value={{
-                  className: "global-class-name",
-                  size: "3em",
-                }}
-              >
-                <MdAttachMoney />
-              </IconContext.Provider>
+              <CircleDollarSign size={18} aria-hidden="true" />
+              Catálogo
             </Link>
             <button
-              className=" text-primary  transition ease-in-out hover:-translate-y-1 hover:scale-110 duration-300"
-              onClick={() => {
-                setShowDialog(true);
-              }}
+              type="button"
+              onClick={() => setShowDialog(true)}
+              className="flex h-11 items-center gap-2 whitespace-nowrap rounded-[10px] bg-[#003f4f] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#002b36] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#003f4f]"
             >
-              <IconContext.Provider
-                value={{
-                  className: "global-class-name",
-                  size: "3em",
-                }}
-              >
-                <IoMdPersonAdd />
-              </IconContext.Provider>
+              <UserPlus size={18} aria-hidden="true" />
+              Agregar usuario
             </button>
           </div>
         </div>
-        <div className="p-5 w-full">
-          <TableRpp />
-        </div>
+
+        <TableRpp />
       </div>
+
       {showDialog && <FormularioUsers onClose={() => setShowDialog(false)} />}
     </div>
   );
