@@ -18,6 +18,8 @@ import SupportDashboard from "./features/helpdesk/pages/SupportDashboard";
 import TicketDetail from "./features/helpdesk/pages/TicketDetail";
 import SupportCategories from "./features/helpdesk/pages/SupportCategories";
 import SupportMetrics from "./features/helpdesk/components/SupportMetrics";
+import CatalogosPage from "./features/catalagos/pages/CatalogosPage";
+import DashboardFianzas from "./features/dashboard/pages/DashboardFianzas";
 
 function App() {
   const user = useAuthStore((state) => state.user);
@@ -130,6 +132,24 @@ function App() {
         />
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<NotFound />} />
+        <Route
+          path="/catalogos"
+          element={
+            <ProtectedRoute>
+              <Header />
+              <CatalogosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Header />
+              <DashboardFianzas />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </div>
   );

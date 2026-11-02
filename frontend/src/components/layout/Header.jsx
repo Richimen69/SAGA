@@ -64,6 +64,9 @@ function header() {
             <Link to="/clientes">
               <li className="hover:text-secondary">Clientes</li>
             </Link>
+            <Link to="/catalogos">
+              <li className="hover:text-secondary">Catálogos</li>
+            </Link>
             <Link to="/rpp">
               <li className="hover:text-secondary">RPP</li>
             </Link>
