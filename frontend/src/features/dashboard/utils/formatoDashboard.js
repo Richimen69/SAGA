@@ -19,6 +19,15 @@ const moneda = new Intl.NumberFormat("es-MX", {
 });
 export const moneyFull = (valor) => moneda.format(Number(valor) || 0);
 
+// Con centavos ($7,500.50): para listados que deben poder cotejarse con el Excel
+const monedaCentavos = new Intl.NumberFormat("es-MX", {
+  style: "currency",
+  currency: "MXN",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+export const moneyCents = (valor) => monedaCentavos.format(Number(valor) || 0);
+
 export const numero = (valor) => (Number(valor) || 0).toLocaleString("es-MX");
 
 // "2026-10-21" -> "21 de octubre de 2026" (sin pasar por Date UTC, para no correr el día)

@@ -8,6 +8,7 @@ import {
   FileText,
   GraduationCap,
   LogOut,
+  FileSpreadsheet 
 } from "lucide-react";
 import LogoPrincipal from "@/assets/logos/LogoPrincipal.svg";
 
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   },
   { to: "/clientes", label: "Clientes", Icon: Users, match: ["/clientes"] },
   { to: "/catalogos", label: "Catálogos", Icon: BookOpen, match: ["/catalogos", "/catalogo"] },
+  { to: "/reportes", label: "Reportes", Icon: FileSpreadsheet, match: ["/reportes", "/reportes"] },
   { to: "/rpp", label: "RPP", Icon: FileText, match: ["/rpp"] },
   {
     to: "/bilse-academy",

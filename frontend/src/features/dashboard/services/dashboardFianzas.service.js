@@ -18,3 +18,10 @@ export const fetchAfianzadorasFiltro = async (anio) => {
   const data = await fetchApi(`metas-conversion/afianzadoras/?anio=${anio}`);
   return (data?.afianzadoras || []).map(({ id, nombre }) => ({ id, nombre }));
 };
+
+// Los trámites de un tramo de antigüedad de la cobranza (tramo: "0-30", "31-90", "91-180" o "mas-180")
+export const fetchDetalleCobranza = ({ tramo, afianzadoraId }) => {
+  const params = new URLSearchParams({ tramo });
+  if (afianzadoraId) params.append("afianzadora_id", String(afianzadoraId));
+  return fetchApi(`dashboard-fianzas/cobranza/?${params.toString()}`);
+};

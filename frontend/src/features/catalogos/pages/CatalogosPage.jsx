@@ -2,12 +2,16 @@ import { useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import AfianzadorasList from "../components/AfianzadorasList";
 import AvanceMeta from "../components/AvanceMeta";
+import GastosExpedicionTab from "../components/GastosExpedicionTab";
 import MetaConversionForm from "../components/forms/MetaConversionForm";
 import useMetasConversion from "../hooks/useMetasConversion";
 import { formatoMoneda } from "../utils/formato";
 
 // Para agregar más catálogos, añade una pestaña aquí y su contenido abajo
-const TABS = [{ id: "metas", label: "Metas de conversión" }];
+const TABS = [
+  { id: "metas", label: "Metas de conversión" },
+  { id: "gastos", label: "Gastos de expedición" },
+];
 
 function MetasConversionTab() {
   const anioActual = new Date().getFullYear();
@@ -135,7 +139,10 @@ export default function CatalogosPage() {
         ))}
       </div>
 
-      <div className="mt-5">{tab === "metas" && <MetasConversionTab />}</div>
+      <div className="mt-5">
+        {tab === "metas" && <MetasConversionTab />}
+        {tab === "gastos" && <GastosExpedicionTab />}
+      </div>
     </div>
   );
 }

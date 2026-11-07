@@ -36,7 +36,22 @@ export default function ResumenKpis({ data }) {
             : null
         }
       />
-      {convencion.configurada ? (
+      {!convencion.configurada ? (
+        <KpiCard
+          titulo="Alcance de conversión"
+          color="teal"
+          valor="Sin meta"
+          detalle="Configúrala en Catálogos para ver el alcance."
+        />
+      ) : convencion.por_afianzadora ? (
+        // Todas las afianzadoras: cada una tiene su propia meta, así que no se muestra un porcentaje global
+        <KpiCard
+          titulo="Metas de conversión cumplidas"
+          color="teal"
+          valor={`${convencion.por_afianzadora.filter((a) => a.porcentaje >= 100).length} de ${convencion.por_afianzadora.length}`}
+          detalle="Cada afianzadora se mide contra su propia meta"
+        />
+      ) : (
         <KpiCard
           titulo="Alcance de conversión"
           color="teal"
@@ -47,13 +62,6 @@ export default function ResumenKpis({ data }) {
               ? null
               : { tono: "teal", texto: `Proyección al cierre: ${Math.round(convencion.proyeccion_pct)}%` }
           }
-        />
-      ) : (
-        <KpiCard
-          titulo="Alcance de conversión"
-          color="teal"
-          valor="Sin meta"
-          detalle="Configúrala en Catálogos para ver el alcance."
         />
       )}
       <KpiCard

@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { moneyCompact, numero } from "../../utils/formatoDashboard";
+import DetalleCobranzaModal from "./DetalleCobranzaModal";
 
 const COLORES_ANTIGUEDAD = ["bg-teal-600", "bg-amber-600", "bg-red-600", "bg-red-900"];
 
@@ -10,7 +12,8 @@ const Dato = ({ etiqueta, valor, detalle, color = "text-slate-900" }) => (
   </div>
 );
 
-export default function CobranzaPendiente({ cobranza }) {
+export default function CobranzaPendiente({ cobranza, afianzadoraId = null }) {
+  const [tramoAbierto, setTramoAbierto] = useState(null); // { clave, etiqueta } del tramo cuyo detalle se está viendo
   const maximo = Math.max(0, ...cobranza.antiguedad.map((t) => t.monto));
 
   // Los tramos llegan en orden: 0–30, 31–90, 91–180, > 180. Pasados de 90 días = los dos últimos.
@@ -39,27 +42,48 @@ export default function CobranzaPendiente({ cobranza }) {
               valor={moneyCompact(cobranza.monto_total)}
               detalle={`${numero(cobranza.total_tramites)} trámites · ${numero(cobranza.tramites_con_prima)} con prima`}
             />
+            <Dato
+              etiqueta="En NO PAGADA"
+              valor={moneyCompact(cobranza.no_pagada.monto)}
+              detalle={`${numero(cobranza.no_pagada.tramites)} trámites`}
+              color="text-amber-600"
+            />
+            <Dato
+              etiqueta="Con más de 90 días"
+              valor={moneyCompact(vencida.monto)}
+              detalle={`${numero(vencida.tramites)} trámites · ${pctVencida.toFixed(1)}% del total`}
+              color="text-red-600"
+            />
           </div>
 
           <div className="flex flex-col">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Antigüedad (días desde el trámite)
             </p>
+            <p className="text-[11px] text-slate-400">Haz clic en un tramo para ver sus trámites.</p>
             <ul className="mt-3 flex flex-1 flex-col justify-between gap-4">
               {cobranza.antiguedad.map((tramo, i) => (
-                <li key={tramo.etiqueta}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-slate-800">{tramo.etiqueta}</span>
-                    <span className="text-xs text-slate-500">
-                      {moneyCompact(tramo.monto)} · {numero(tramo.tramites)}
+                <li key={tramo.clave}>
+                  <button
+                    type="button"
+                    disabled={tramo.tramites === 0}
+                    onClick={() => setTramoAbierto({ clave: tramo.clave, etiqueta: tramo.etiqueta })}
+                    title={tramo.tramites === 0 ? "No hay trámites en este tramo" : `Ver los trámites de ${tramo.etiqueta}`}
+                    className="-mx-2 block w-[calc(100%+1rem)] rounded-md px-2 py-1 text-left transition-colors enabled:hover:bg-slate-50 disabled:cursor-default"
+                  >
+                    <span className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-slate-800">{tramo.etiqueta}</span>
+                      <span className="text-xs text-slate-500">
+                        {moneyCompact(tramo.monto)} · {numero(tramo.tramites)}
+                      </span>
                     </span>
-                  </div>
-                  <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className={`h-full rounded-full ${COLORES_ANTIGUEDAD[i]}`}
-                      style={{ width: `${maximo > 0 ? (tramo.monto / maximo) * 100 : 0}%` }}
-                    />
-                  </div>
+                    <span className="mt-1.5 block h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                      <span
+                        className={`block h-full rounded-full ${COLORES_ANTIGUEDAD[i]}`}
+                        style={{ width: `${maximo > 0 ? (tramo.monto / maximo) * 100 : 0}%` }}
+                      />
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -82,6 +106,14 @@ export default function CobranzaPendiente({ cobranza }) {
             </ul>
           </div>
         </div>
+      )}
+
+      {tramoAbierto && (
+        <DetalleCobranzaModal
+          tramo={tramoAbierto}
+          afianzadoraId={afianzadoraId}
+          onCerrar={() => setTramoAbierto(null)}
+        />
       )}
     </section>
   );

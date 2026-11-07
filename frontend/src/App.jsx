@@ -18,8 +18,9 @@ import SupportDashboard from "./features/helpdesk/pages/SupportDashboard";
 import TicketDetail from "./features/helpdesk/pages/TicketDetail";
 import SupportCategories from "./features/helpdesk/pages/SupportCategories";
 import SupportMetrics from "./features/helpdesk/components/SupportMetrics";
-import CatalogosPage from "./features/catalagos/pages/CatalogosPage";
+import CatalogosPage from "./features/catalogos/pages/CatalogosPage";
 import DashboardFianzas from "./features/dashboard/pages/DashboardFianzas";
+import ReportesPage from "./features/reportes/pages/ReportesPage";
 
 function App() {
   const user = useAuthStore((state) => state.user);
@@ -40,6 +41,14 @@ function App() {
           <Route path="/config" element={<Configuraciones />} />
           <Route path="/catalogo" element={<CatalogoRPP />} />
           <Route path="/catalogos" element={<CatalogosPage />} />
+          <Route
+            path="/reportes"
+            element={
+              <ProtectedRoute>
+                <ReportesPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/clientes" element={<Clientes />} />
           <Route path="/helpdesk" element={<Clientes />} />
           <Route path="/tramites" element={<Tramites />} />
