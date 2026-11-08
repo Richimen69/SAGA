@@ -55,20 +55,23 @@ export default function AvanceMeta({ avance }) {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-xs text-slate-500">
-              <th className="py-2 pr-3 font-medium">Ramo</th>
+              <th className="py-2 pr-3 font-medium">Subramo</th>
               <th className="px-3 py-2 text-right font-medium">Prima</th>
               <th className="px-3 py-2 text-right font-medium">%</th>
               <th className="py-2 pl-3 text-right font-medium">Aceptado</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {avance.ramos.map((r) => (
-              <tr key={r.ramo}>
-                <td className="py-2 pr-3 text-slate-800">{r.ramo_nombre}</td>
-                <td className="px-3 py-2 text-right text-slate-600">{formatoMoneda(r.prima)}</td>
-                <td className="px-3 py-2 text-right text-slate-600">{formatoPorcentaje(r.porcentaje)}</td>
+            {avance.tipos.map((t) => (
+              <tr key={t.tipo_fianza}>
+                <td className="py-2 pr-3 text-slate-800">
+                  {t.tipo_nombre}
+                  <span className="block text-xs text-slate-400">{t.ramo_nombre}</span>
+                </td>
+                <td className="px-3 py-2 text-right text-slate-600">{formatoMoneda(t.prima)}</td>
+                <td className="px-3 py-2 text-right text-slate-600">{formatoPorcentaje(t.porcentaje)}</td>
                 <td className="py-2 pl-3 text-right font-medium text-slate-900">
-                  {formatoMoneda(r.prima_aceptada)}
+                  {formatoMoneda(t.prima_aceptada)}
                 </td>
               </tr>
             ))}
@@ -81,7 +84,7 @@ export default function AvanceMeta({ avance }) {
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             Hay {formatoMoneda(avance.prima_sin_ramo)} en trámites sin tipo de fianza. No se pueden asignar a
-            ningún ramo y no cuentan para esta meta.
+            ningún subramo y no cuentan para esta meta.
           </span>
         </div>
       )}

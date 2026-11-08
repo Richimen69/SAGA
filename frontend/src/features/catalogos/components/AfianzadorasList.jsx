@@ -62,8 +62,8 @@ export default function AfianzadorasList({ afianzadoras, seleccionadaId, onSelec
                   </span>
                   {afi.configurada && (
                     <span className="text-xs text-slate-500">
-                      Meta de conversión: {formatoMoneda(afi.meta_conversion)} · {afi.total_ramos}{" "}
-                      {afi.total_ramos === 1 ? "ramo" : "ramos"}
+                      Meta de conversión: {formatoMoneda(afi.meta_conversion)} · {afi.total_tipos}{" "}
+                      {afi.total_tipos === 1 ? "subramo" : "subramos"}
                     </span>
                   )}
                 </button>

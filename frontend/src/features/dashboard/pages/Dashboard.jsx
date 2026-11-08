@@ -2,6 +2,11 @@ import { useState } from "react";
 import { AlertCircle, Info, Loader2, Settings2, Target } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import useProtectedData from "@/shared/hooks/useProtectedData";
+import Pastel from "@/features/dashboard/components/cards/PastelEstadoTramites";
+import PastelPendientes from "@/features/dashboard/components/cards/PastelPendientes";
+import PastelCompromisos from "@/features/dashboard/components/cards/PastelCompromisos";
+import PastelMovimientos from "@/features/dashboard/components/cards/PastelMovimientos";
+import TableTramites from "@/features/dashboard/components/tables/TableTramites";
 import AlcanceConvencion from "../components/fianzas/AlcanceConvencion";
 import CobranzaPendiente from "../components/fianzas/CobranzaPendiente";
 import CompromisosPago from "../components/fianzas/CompromisosPago";
@@ -138,7 +143,13 @@ export default function Dashboard() {
 
           <div className="grid gap-5 lg:grid-cols-3">
             <div className="flex lg:col-span-2">
-              <VentaMensualChart mensual={data.ventas.mensual} anio={data.anio} corte={data.corte} />
+              <VentaMensualChart
+                mensual={data.ventas.mensual}
+                anio={data.anio}
+                corte={data.corte}
+                totalActual={data.ventas.total_prima}
+                anterior={data.ventas.anio_anterior}
+              />
             </div>
             <AlcanceConvencion
               convencion={data.convencion}

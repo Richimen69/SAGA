@@ -74,3 +74,12 @@ export const topeEje = (max) => {
   }
   return 10 * exp;
 };
+
+// Variación porcentual con signo: +30%, -30%, +3.8%, 0%. (De 10% para arriba se redondea a entero.)
+export const formatoVariacion = (valor) => {
+  if (valor == null || Number.isNaN(Number(valor))) return "";
+  const v = Number(valor);
+  const n = Math.abs(v) >= 10 ? Math.round(v) : Math.round(v * 10) / 10;
+  if (n === 0) return "0%";
+  return `${n > 0 ? "+" : "−"}${Math.abs(n)}%`; // el mismo signo "−" que usa el indicador de ventas
+};

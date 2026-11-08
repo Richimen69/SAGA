@@ -1,8 +1,61 @@
-import { mesCorto, moneyCompact, topeEje } from "../../utils/formatoDashboard";
+import { formatoVariacion, mesCorto, moneyCompact, moneyFull, topeEje } from "../../utils/formatoDashboard";
 
-export default function VentaMensualChart({ mensual, anio, corte }) {
-  const [anioCorte, mesCorte] = corte.split("-").map(Number);
+// Verde si vendió más que el año anterior, rojo si vendió menos, gris si quedó igual
+const estiloVariacion = (valor) => {
+  if (valor > 0) return "bg-emerald-50 text-emerald-700";
+  if (valor < 0) return "bg-red-50 text-red-700";
+  return "bg-slate-100 text-slate-500";
+};
+
+function Variacion({ valor, className = "", ...props }) {
+  return (
+    <span
+      className={`inline-block whitespace-nowrap rounded-full px-1.5 py-0.5 font-semibold ${estiloVariacion(valor)} ${className}`}
+      {...props}
+    >
+      {formatoVariacion(valor)}
+    </span>
+  );
+}
+
+// Pastilla de un mes: su % contra el mismo mes del año anterior. "Nuevo" si el año anterior no vendió nada ese mes.
+function VariacionMes({ m, anio, enCurso }) {
+  const nombre = mesCorto(m.mes);
+  if (m.variacion_pct != null) {
+    const detalle = enCurso
+      ? `${anio} vs los mismos días de ${anio - 1}`
+      : `${anio} vs ${anio - 1}`;
+    return (
+      <Variacion
+        valor={m.variacion_pct}
+        className="text-[10px]"
+        title={`${nombre}: ${moneyCompact(m.actual)} contra ${moneyCompact(m.anterior_comparable)} (${detalle})`}
+        aria-label={`Variación de ${nombre}: ${formatoVariacion(m.variacion_pct)}`}
+      />
+    );
+  }
+  if (m.anterior_comparable === 0 && m.actual > 0) {
+    return (
+      <span
+        className="inline-block whitespace-nowrap rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700"
+        title={`${nombre}: ${anio - 1} no tuvo ventas en ese periodo`}
+      >
+        Nuevo
+      </span>
+    );
+  }
+  return null; // el mes aún no llega, o ninguno de los dos años vendió
+}
+
+export default function VentaMensualChart({ mensual, anio, corte, totalActual = 0, anterior = null }) {
+  const [anioCorte, mesCorte, diaCorte] = corte.split("-").map(Number);
   const mesEnCurso = anio === anioCorte ? mesCorte : null;
+  const periodo = mesEnCurso ? `1 ene – ${diaCorte} ${mesCorto(mesCorte).toLowerCase()}` : "año completo";
+  // El año anterior completo solo se muestra aparte si es distinto de su mismo periodo
+  const anioCompleto =
+    anterior?.total_anio_completo != null && Math.abs(anterior.total_anio_completo - anterior.total_prima) > 0.005
+      ? anterior.total_anio_completo
+      : null;
 
   const maximo = Math.max(0, ...mensual.flatMap((m) => [m.actual, m.anterior]));
   const tope = topeEje(maximo);
@@ -27,6 +80,38 @@ export default function VentaMensualChart({ mensual, anio, corte }) {
           </span>
         </div>
       </div>
+
+      {anterior && (
+        <div className="mt-4 rounded-lg bg-slate-50 p-3" data-testid="comparativa-total">
+          <div className="grid grid-cols-2 items-center gap-3 sm:grid-cols-[1fr_1fr_auto]">
+            <div>
+              <p className="text-[11px] text-slate-500">
+                {anio - 1} · {periodo}
+              </p>
+              <p className="text-lg font-semibold text-slate-600">{moneyFull(anterior.total_prima)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500">
+                {anio} · {periodo}
+              </p>
+              <p className="text-lg font-semibold text-blue-900">{moneyFull(totalActual)}</p>
+            </div>
+            <div className="col-span-2 flex items-center gap-2 sm:col-span-1 sm:flex-col sm:items-start sm:gap-0.5">
+              {anterior.variacion_pct != null ? (
+                <Variacion valor={anterior.variacion_pct} className="text-sm" aria-label={`Variación total: ${formatoVariacion(anterior.variacion_pct)}`} />
+              ) : (
+                <span className="text-xs text-slate-400">Sin base de comparación</span>
+              )}
+              {anterior.variacion_pct != null && <span className="text-[11px] text-slate-400">vs {anio - 1}</span>}
+            </div>
+          </div>
+          {anioCompleto != null && (
+            <p className="mt-2 border-t border-slate-200 pt-2 text-[11px] text-slate-400">
+              Año completo {anio - 1}: {moneyFull(anioCompleto)}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* La zona de barras crece para llenar la tarjeta; los ejes se alinean con una cuadrícula */}
       <div className="mt-8 grid min-h-[300px] flex-1 grid-cols-[2.5rem_1fr] grid-rows-[1fr_auto] gap-x-3">
@@ -58,17 +143,21 @@ export default function VentaMensualChart({ mensual, anio, corte }) {
                   style={{ height: altura(m.anterior) }}
                   title={`${mesCorto(m.mes)} ${anio - 1}: ${moneyCompact(m.anterior)}`}
                 />
-                <div className="flex h-full flex-col items-center justify-end">
-                  {m.actual > 0 && (
-                    <span className="mb-1 hidden whitespace-nowrap text-[10px] font-semibold text-blue-900 lg:block">
-                      {moneyCompact(m.actual)}
-                    </span>
-                  )}
+                <div className="relative flex h-full flex-col items-center justify-end">
                   <div
                     className="w-2.5 rounded-t bg-blue-900 sm:w-4"
                     style={{ height: altura(m.actual) }}
                     title={`${mesCorto(m.mes)} ${anio}: ${moneyCompact(m.actual)}`}
                   />
+                  {/* El monto va sobre la barra sin ocupar espacio: así no ensancha la columna en pantallas medianas */}
+                  {m.actual > 0 && (
+                    <span
+                      className="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold text-blue-900 lg:block"
+                      style={{ bottom: `calc(${altura(m.actual)} + 4px)` }}
+                    >
+                      {moneyCompact(m.actual)}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -79,13 +168,18 @@ export default function VentaMensualChart({ mensual, anio, corte }) {
         <div>
           <div className="mt-2 flex">
             {mensual.map((m) => (
-              <span key={m.mes} className="flex-1 text-center text-[11px] text-slate-500">
-                {mesCorto(m.mes)}
-                {m.mes === mesEnCurso ? "*" : ""}
-              </span>
+              <div key={m.mes} className="flex flex-1 flex-col items-center gap-1">
+                <span className="text-[11px] text-slate-500">
+                  {mesCorto(m.mes)}
+                  {m.mes === mesEnCurso ? "*" : ""}
+                </span>
+                {/* Variación contra el mismo mes del año anterior */}
+                <span className="hidden min-h-[20px] sm:block">
+                  <VariacionMes m={m} anio={anio} enCurso={m.mes === mesEnCurso} />
+                </span>
+              </div>
             ))}
           </div>
-          {mesEnCurso && <p className="mt-2 text-[11px] text-slate-400">* Mes en curso (incompleto).</p>}
         </div>
       </div>
     </section>

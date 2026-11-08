@@ -17,7 +17,7 @@ export default function useMetasConversion(anio) {
   // { [ramoId]: [tipos] } — null si no se pudieron cargar los tipos de ese ramo
   const [tiposPorRamo, setTiposPorRamo] = useState({});
   const [seleccionada, setSeleccionada] = useState(null);
-  const [meta, setMeta] = useState(null); // meta de conversión guardada (con sus ramos)
+  const [meta, setMeta] = useState(null); // meta de conversión guardada (con sus subramos)
   const [avance, setAvance] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
@@ -108,7 +108,7 @@ export default function useMetasConversion(anio) {
     };
   }, [anio]);
 
-  // payload: { meta_conversion, ramos: [{ ramo, porcentaje }] }
+  // payload: { meta_conversion, tipos: [{ tipo_fianza, porcentaje }] }
   const guardar = async (payload) => {
     if (!seleccionada) return { ok: false, mensaje: "Selecciona una afianzadora." };
 

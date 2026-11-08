@@ -1,27 +1,35 @@
 import { useState } from "react";
 import { AlertCircle, ChevronDown, ChevronRight, Loader2, Save } from "lucide-react";
 
-// Convierte los ramos guardados en { [ramoId]: "porcentaje" }
+// Convierte los subramos guardados en { [tipoId]: "porcentaje" }
 const seleccionInicial = (meta) =>
-  Object.fromEntries((meta?.ramos || []).map((r) => [r.ramo, String(Number(r.porcentaje))]));
+  Object.fromEntries((meta?.tipos || []).map((t) => [t.tipo_fianza, String(Number(t.porcentaje))]));
 
-function TiposDelRamo({ tipos }) {
-  if (tipos === undefined) return <p className="text-xs text-slate-400">Cargando tipos...</p>;
-  if (tipos === null) return <p className="text-xs text-red-600">No se pudieron cargar los tipos de este ramo.</p>;
-  if (tipos.length === 0) return <p className="text-xs text-slate-400">Este ramo no tiene tipos registrados.</p>;
+const nombresDeTipo = (ramos, tiposPorRamo, meta) => {
+  const nombres = Object.fromEntries((meta?.tipos || []).map((t) => [String(t.tipo_fianza), `${t.ramo_nombre} – ${t.tipo_nombre}`]));
+  for (const ramo of ramos) {
+    for (const tipo of tiposPorRamo[ramo.id] || []) nombres[String(tipo.id)] = `${ramo.nombre} – ${tipo.nombre}`;
+  }
+  return nombres;
+};
 
+// Casilla del ramo: marcada si están todos sus subramos, "a medias" si solo algunos
+function CasillaRamo({ estado, ...props }) {
   return (
-    <ul className="flex flex-wrap gap-1.5">
-      {tipos.map((tipo) => (
-        <li key={tipo.id} className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
-          {tipo.nombre}
-        </li>
-      ))}
-    </ul>
+    <input
+      type="checkbox"
+      ref={(el) => {
+        if (el) el.indeterminate = estado === "parcial";
+      }}
+      checked={estado === "todos"}
+      className="h-4 w-4 rounded border-slate-300"
+      {...props}
+    />
   );
 }
 
 /**
+ * La meta se arma por SUBRAMO (tipo de fianza): cada subramo se marca por separado y tiene su propio %.
  * Usar con `key` (afianzadora + año + id de la meta) para que el estado
  * se reinicie al cambiar de afianzadora o después de guardar.
  */
@@ -30,17 +38,32 @@ export default function MetaConversionForm({ meta, ramos, tiposPorRamo = {}, gua
     meta ? String(Number(meta.meta_conversion)) : ""
   );
   const [seleccion, setSeleccion] = useState(() => seleccionInicial(meta));
-  // Los ramos que ya están en la meta arrancan con sus hijas visibles
-  const [abiertos, setAbiertos] = useState(() => new Set(Object.keys(seleccionInicial(meta))));
+  // Los ramos que ya tienen subramos en la meta arrancan desplegados
+  const [abiertos, setAbiertos] = useState(() => new Set((meta?.tipos || []).map((t) => String(t.ramo_id))));
   const [error, setError] = useState(null);
 
-  const toggleRamo = (id) => {
+  const toggleTipo = (id) => {
     setSeleccion((actual) => {
       const copia = { ...actual };
       if (id in copia) delete copia[id];
       else copia[id] = "100";
       return copia;
     });
+  };
+
+  // Marca (o desmarca) todos los subramos del ramo. Los que ya estaban marcados conservan su %.
+  const toggleRamo = (ramo) => {
+    const tipos = tiposPorRamo[ramo.id];
+    if (!Array.isArray(tipos) || tipos.length === 0) return;
+    const ids = tipos.map((t) => String(t.id));
+
+    setSeleccion((actual) => {
+      const copia = { ...actual };
+      if (ids.every((id) => id in copia)) ids.forEach((id) => delete copia[id]);
+      else ids.forEach((id) => { if (!(id in copia)) copia[id] = "100"; });
+      return copia;
+    });
+    setAbiertos((actual) => new Set(actual).add(String(ramo.id)));
   };
 
   const toggleAbierto = (id) => {
@@ -60,13 +83,13 @@ export default function MetaConversionForm({ meta, ramos, tiposPorRamo = {}, gua
     if (!(Number(metaConversion) > 0)) return "La meta de conversión debe ser mayor a 0.";
 
     const ids = Object.keys(seleccion);
-    if (ids.length === 0) return "Selecciona al menos un ramo.";
+    if (ids.length === 0) return "Selecciona al menos un subramo.";
 
+    const nombres = nombresDeTipo(ramos, tiposPorRamo, meta);
     for (const id of ids) {
       const pct = Number(seleccion[id]);
-      const nombre = ramos.find((r) => String(r.id) === id)?.nombre ?? `ramo ${id}`;
       if (!(pct > 0 && pct <= 100)) {
-        return `El porcentaje de "${nombre}" debe ser mayor a 0 y menor o igual a 100.`;
+        return `El porcentaje de "${nombres[id] ?? `subramo ${id}`}" debe ser mayor a 0 y menor o igual a 100.`;
       }
     }
     return null;
@@ -83,13 +106,15 @@ export default function MetaConversionForm({ meta, ramos, tiposPorRamo = {}, gua
 
     const resultado = await onGuardar({
       meta_conversion: String(metaConversion),
-      ramos: Object.entries(seleccion).map(([id, pct]) => ({
-        ramo: Number(id),
+      tipos: Object.entries(seleccion).map(([id, pct]) => ({
+        tipo_fianza: Number(id),
         porcentaje: String(pct),
       })),
     });
     if (!resultado.ok) setError(resultado.mensaje);
   };
+
+  const totalSeleccionados = Object.keys(seleccion).length;
 
   return (
     <form noValidate onSubmit={handleSubmit} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -114,10 +139,10 @@ export default function MetaConversionForm({ meta, ramos, tiposPorRamo = {}, gua
         />
       </div>
 
-      <p className="mt-5 text-sm font-medium text-slate-700">Ramos que cuentan para la meta</p>
+      <p className="mt-5 text-sm font-medium text-slate-700">Subramos que cuentan para la meta</p>
       <p className="text-xs text-slate-500">
-        Marca los ramos y define qué porcentaje de su prima se toma en cuenta. Usa la flecha para ver los tipos
-        de fianza de cada ramo.
+        Marca los subramos (tipos de fianza) y define qué porcentaje de su prima se toma en cuenta. La casilla del
+        ramo marca todos sus subramos; usa la flecha para ver cada uno.
       </p>
 
       {ramos.length === 0 ? (
@@ -126,58 +151,85 @@ export default function MetaConversionForm({ meta, ramos, tiposPorRamo = {}, gua
         <ul className="mt-3 divide-y divide-slate-100 rounded-md border border-slate-200">
           {ramos.map((ramo) => {
             const id = String(ramo.id);
-            const marcado = id in seleccion;
             const abierto = abiertos.has(id);
             const tipos = tiposPorRamo[ramo.id];
+            const cargados = Array.isArray(tipos) ? tipos : [];
+            const marcados = cargados.filter((t) => String(t.id) in seleccion).length;
+            const estado = marcados === 0 ? "ninguno" : marcados === cargados.length ? "todos" : "parcial";
 
             return (
               <li key={ramo.id} className="px-3 py-2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleAbierto(id)}
-                      aria-expanded={abierto}
-                      aria-label={`${abierto ? "Ocultar" : "Ver"} tipos de ${ramo.nombre}`}
-                      className="rounded p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                    >
-                      {abierto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    </button>
-                    <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-800">
-                      <input
-                        type="checkbox"
-                        checked={marcado}
-                        onChange={() => toggleRamo(id)}
-                        className="h-4 w-4 rounded border-slate-300"
-                      />
-                      {ramo.nombre}
-                    </label>
-                    {Array.isArray(tipos) && (
-                      <span className="whitespace-nowrap text-xs text-slate-400">
-                        {tipos.length} {tipos.length === 1 ? "tipo" : "tipos"}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-1">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      disabled={!marcado}
-                      value={marcado ? seleccion[id] : ""}
-                      onChange={(e) => cambiarPorcentaje(id, e.target.value)}
-                      aria-label={`Porcentaje de ${ramo.nombre}`}
-                      className="w-20 rounded-md border border-slate-300 px-2 py-1 text-right text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-300"
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleAbierto(id)}
+                    aria-expanded={abierto}
+                    aria-label={`${abierto ? "Ocultar" : "Ver"} subramos de ${ramo.nombre}`}
+                    className="rounded p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    {abierto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </button>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-800">
+                    <CasillaRamo
+                      estado={estado}
+                      disabled={cargados.length === 0}
+                      onChange={() => toggleRamo(ramo)}
+                      aria-label={`Todos los subramos de ${ramo.nombre}`}
                     />
-                    <span className="text-sm text-slate-500">%</span>
-                  </div>
+                    {ramo.nombre}
+                  </label>
+                  {Array.isArray(tipos) && (
+                    <span className="whitespace-nowrap text-xs text-slate-400">
+                      {marcados} de {tipos.length} {tipos.length === 1 ? "subramo" : "subramos"}
+                    </span>
+                  )}
                 </div>
 
                 {abierto && (
-                  <div className="ml-7 mt-2">
-                    <TiposDelRamo tipos={tipos} />
+                  <div className="ml-9 mt-1">
+                    {tipos === undefined && <p className="py-1 text-xs text-slate-400">Cargando subramos...</p>}
+                    {tipos === null && (
+                      <p className="py-1 text-xs text-red-600">No se pudieron cargar los subramos de este ramo.</p>
+                    )}
+                    {Array.isArray(tipos) && tipos.length === 0 && (
+                      <p className="py-1 text-xs text-slate-400">Este ramo no tiene subramos registrados.</p>
+                    )}
+                    {cargados.length > 0 && (
+                      <ul className="divide-y divide-slate-50">
+                        {cargados.map((tipo) => {
+                          const tipoId = String(tipo.id);
+                          const marcado = tipoId in seleccion;
+                          return (
+                            <li key={tipo.id} className="flex items-center justify-between gap-3 py-1.5">
+                              <label className="flex min-w-0 cursor-pointer items-center gap-2 text-sm text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={marcado}
+                                  onChange={() => toggleTipo(tipoId)}
+                                  aria-label={`Subramo ${tipo.nombre} de ${ramo.nombre}`}
+                                  className="h-4 w-4 rounded border-slate-300"
+                                />
+                                <span className="truncate">{tipo.nombre}</span>
+                              </label>
+                              <div className="flex shrink-0 items-center gap-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.01"
+                                  disabled={!marcado}
+                                  value={marcado ? seleccion[tipoId] : ""}
+                                  onChange={(e) => cambiarPorcentaje(tipoId, e.target.value)}
+                                  aria-label={`Porcentaje de ${tipo.nombre}`}
+                                  className="w-20 rounded-md border border-slate-300 px-2 py-1 text-right text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-300"
+                                />
+                                <span className="text-sm text-slate-500">%</span>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </div>
                 )}
               </li>
@@ -185,6 +237,10 @@ export default function MetaConversionForm({ meta, ramos, tiposPorRamo = {}, gua
           })}
         </ul>
       )}
+
+      <p className="mt-2 text-xs text-slate-500">
+        {totalSeleccionados} {totalSeleccionados === 1 ? "subramo seleccionado" : "subramos seleccionados"}
+      </p>
 
       {error && (
         <div role="alert" className="mt-4 flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">

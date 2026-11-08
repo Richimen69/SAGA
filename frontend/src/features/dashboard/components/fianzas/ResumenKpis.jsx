@@ -68,7 +68,7 @@ export default function ResumenKpis({ data }) {
         titulo="Compromisos abiertos"
         color="violeta"
         valor={numero(compromisos.abiertos)}
-        detalle={`${moneyCompact(compromisos.monto_abierto)} · ${numero(compromisos.registrados)} registrados, ${numero(compromisos.cumplidos)} cumplidos`}
+        detalle={`${moneyCompact(compromisos.monto_abierto)} de prima por cobrar`}
         badge={vencimientos ? { tono: "azul", texto: `Vencen ${vencimientos}` } : null}
       />
     </div>

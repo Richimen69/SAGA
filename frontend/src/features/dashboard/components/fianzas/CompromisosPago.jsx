@@ -1,16 +1,16 @@
-import { fechaCorta, moneyFull, numero } from "../../utils/formatoDashboard";
-
-// Cuántos compromisos abiertos se listan; el resto se resume en "y N más"
-const MAX_VISIBLES = 3;
+import { fechaCorta, moneyCompact, moneyFull, numero } from "../../utils/formatoDashboard";
 
 const Dato = ({ valor, etiqueta, clases }) => (
   <div className={`rounded-lg p-3 ${clases}`}>
-    <p className="text-2xl font-bold text-slate-900">{numero(valor)}</p>
+    <p className="text-2xl font-bold text-slate-900">{valor}</p>
     <p className="text-xs text-slate-600">{etiqueta}</p>
   </div>
 );
 
+// El vencimiento solo se muestra si el trámite tiene un compromiso abierto con fecha registrada
 function Vencimiento({ compromiso }) {
+  if (!compromiso.fecha_vencimiento) return null;
+
   if (compromiso.vencido) {
     const dias = Math.abs(compromiso.dias_para_vencer);
     return (
@@ -32,44 +32,50 @@ function Vencimiento({ compromiso }) {
 }
 
 export default function CompromisosPago({ compromisos }) {
-  const visibles = compromisos.listado_abiertos.slice(0, MAX_VISIBLES);
-  const ocultos = compromisos.abiertos - visibles.length;
+  const lista = compromisos.listado_abiertos;
 
   return (
     <section className="flex h-full min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-base font-semibold text-slate-900">Compromisos de pago</h2>
+      <p className="text-xs text-slate-500">Trámites en compromiso de pago con estatus de pago NO PAGADA</p>
 
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <Dato valor={compromisos.registrados} etiqueta="Registrados" clases="bg-slate-100" />
-        <Dato valor={compromisos.cumplidos} etiqueta="Cumplidos" clases="bg-emerald-100" />
-        <Dato valor={compromisos.abiertos} etiqueta="Abiertos" clases="bg-amber-100" />
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Dato valor={numero(compromisos.abiertos)} etiqueta="Trámites" clases="bg-amber-100" />
+        <Dato valor={moneyCompact(compromisos.monto_abierto)} etiqueta="Prima por cobrar" clases="bg-slate-100" />
       </div>
 
-      <p className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-        Abiertos · trámites terminados con pago pendiente
-      </p>
-      {visibles.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-500">No hay compromisos abiertos.</p>
+      {lista.length === 0 ? (
+        <p className="mt-5 text-sm text-slate-500">No hay trámites en compromiso de pago.</p>
       ) : (
-        <ul className="mt-3 space-y-2">
-          {visibles.map((c) => (
-            <li key={c.id} className="rounded-lg border border-slate-200 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-900">{c.folio}</p>
-                  <p className="truncate text-xs text-slate-500">{c.cliente_nombre || "Sin cliente"}</p>
+        <>
+          <ul className="mt-4 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
+            {lista.map((c) => (
+              <li key={c.id} className="rounded-lg border border-slate-200 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">{c.folio}</p>
+                    <p className="truncate text-xs text-slate-500" title={c.cliente_nombre}>
+                      {c.cliente_nombre}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="text-sm font-semibold text-slate-900">{moneyFull(c.monto)}</span>
+                    <Vencimiento compromiso={c} />
+                  </div>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <span className="text-sm font-semibold text-slate-900">{moneyFull(c.monto)}</span>
-                  <Vencimiento compromiso={c} />
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-      {ocultos > 0 && (
-        <p className="mt-2 text-xs text-slate-400">y {ocultos} más sin mostrar.</p>
+                <p className="mt-2 break-words border-t border-slate-100 pt-2 text-xs text-slate-600">
+                  <span className="font-medium text-slate-500">Observaciones: </span>
+                  {c.observaciones_pago || <span className="text-slate-400">Sin observaciones</span>}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {compromisos.truncado && (
+            <p className="mt-2 text-xs text-slate-400">
+              Se muestran {numero(lista.length)} de {numero(compromisos.abiertos)} trámites.
+            </p>
+          )}
+        </>
       )}
     </section>
   );
